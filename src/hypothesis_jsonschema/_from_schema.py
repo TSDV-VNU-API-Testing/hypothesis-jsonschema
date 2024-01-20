@@ -11,7 +11,9 @@ from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Union
 
 import jsonschema
 import jsonschema.exceptions
-from hypothesis import assume, provisional as prov, strategies as st
+from hypothesis import assume
+from hypothesis import provisional as prov
+from hypothesis import strategies as st
 from hypothesis.errors import HypothesisWarning, InvalidArgument
 from hypothesis.internal.conjecture import utils as cu
 from hypothesis.strategies._internal.regex import regex_strategy
@@ -33,14 +35,32 @@ from ._canonicalise import (
 from ._encode import JSONType, encode_canonical_json
 from ._resolve import resolve_all_refs
 
+CHAR_ST = st.characters(blacklist_categories=("Cs",))
+TEXT_ST = st.text(alphabet=CHAR_ST, min_size=0)
+
+
+def set_char(char_st: st.SearchStrategy[str]):
+    if not isinstance(char_st, st.SearchStrategy):
+        return
+    global CHAR_ST
+    CHAR_ST = char_st
+
+
+def set_text(text_st: st.SearchStrategy[str]):
+    if not isinstance(text_st, st.SearchStrategy):
+        return
+    global TEXT_ST
+    TEXT_ST = text_st
+
+
 JSON_STRATEGY: st.SearchStrategy[JSONType] = st.recursive(
     st.none()
     | st.booleans()
     | st.integers()
     | st.floats(allow_nan=False, allow_infinity=False).map(lambda x: x or 0.0)
-    | st.text(),
+    | TEXT_ST,
     lambda strategy: st.lists(strategy, max_size=3)
-    | st.dictionaries(st.text(), strategy, max_size=3),
+    | st.dictionaries(TEXT_ST, strategy, max_size=3),
 )
 _FORMATS_TOKEN = object()
 
@@ -463,7 +483,10 @@ def string_schema(
     # also https://json-schema.org/latest/json-schema-validation.html#rfc.section.7
     min_size = schema.get("minLength", 0)
     max_size = schema.get("maxLength")
-    strategy = st.text(alphabet, min_size=min_size, max_size=max_size)
+
+    # Original: strategy = st.text(alphabet, min_size=min_size, max_size=max_size)
+    strategy = st.text(alphabet=CHAR_ST, min_size=min_size, max_size=max_size)
+
     known_formats = {**STRING_FORMATS, **(custom_formats or {})}
     if schema.get("format") in known_formats:
         # Unknown "format" specifiers should be ignored for validation.
@@ -617,7 +640,9 @@ def object_schema(
     patterns = schema.get("patternProperties", {})  # regex for names: value schema
     # schema for other values; handled specially if nothing matches
     additional = schema.get("additionalProperties", {})
-    additional_allowed = additional != FALSEY
+
+    # Original additional_allowed = additional != FALSEY
+    additional_allowed = FALSEY
 
     for key in list(patterns):
         try:
