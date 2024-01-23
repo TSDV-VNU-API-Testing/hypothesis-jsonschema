@@ -35,32 +35,14 @@ from ._canonicalise import (
 from ._encode import JSONType, encode_canonical_json
 from ._resolve import resolve_all_refs
 
-CHAR_ST = st.characters(blacklist_categories=("Cs",))
-TEXT_ST = st.text(alphabet=CHAR_ST, min_size=0)
-
-
-def set_char(char_st: st.SearchStrategy[str]):
-    if not isinstance(char_st, st.SearchStrategy):
-        return
-    global CHAR_ST
-    CHAR_ST = char_st
-
-
-def set_text(text_st: st.SearchStrategy[str]):
-    if not isinstance(text_st, st.SearchStrategy):
-        return
-    global TEXT_ST
-    TEXT_ST = text_st
-
-
 JSON_STRATEGY: st.SearchStrategy[JSONType] = st.recursive(
     st.none()
     | st.booleans()
     | st.integers()
     | st.floats(allow_nan=False, allow_infinity=False).map(lambda x: x or 0.0)
-    | TEXT_ST,
+    | st.text(),
     lambda strategy: st.lists(strategy, max_size=3)
-    | st.dictionaries(TEXT_ST, strategy, max_size=3),
+    | st.dictionaries(st.text(), strategy, max_size=3),
 )
 _FORMATS_TOKEN = object()
 
@@ -484,8 +466,7 @@ def string_schema(
     min_size = schema.get("minLength", 0)
     max_size = schema.get("maxLength")
 
-    # Original: strategy = st.text(alphabet, min_size=min_size, max_size=max_size)
-    strategy = st.text(alphabet=CHAR_ST, min_size=min_size, max_size=max_size)
+    strategy = st.text(alphabet, min_size=min_size, max_size=max_size)
 
     known_formats = {**STRING_FORMATS, **(custom_formats or {})}
     if schema.get("format") in known_formats:
