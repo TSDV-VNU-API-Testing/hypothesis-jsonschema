@@ -1,0 +1,549 @@
+from __future__ import annotations
+
+import base64
+from datetime import date, datetime, time, timedelta, timezone
+from decimal import Decimal
+from typing import (
+    Any,
+    Callable,
+    Collection,
+    Iterable,
+    Literal,
+    Mapping,
+    Sequence,
+    Union,
+    get_args,
+)
+from uuid import UUID
+
+from faker import Faker
+from hypothesis import strategies as st
+
+# Full option
+# {
+# codec=None,
+# min_codepoint=None,
+# max_codepoint=None,
+# categories=None,
+# exclude_characters=None,
+# include_characters=None,
+# }
+
+ASCII_OPTION = {
+    "min_codepoint": ord("\u0020"),  # 0 ~ Space
+    "max_codepoint": ord("\u007E"),  # ~ ~ Tilde
+}
+ASCII_NO_SYMBOL_AND_PUNCTUATION_OPTION = {
+    # For codepoint visit:
+    # https://hypothesis.readthedocs.io/en/latest/data.html#hypothesis.strategies.characters
+    # https://en.wikipedia.org/wiki/List_of_Unicode_characters
+    # To get code point of a unicode char, use `ord()`
+    # Want to char in ascii range, but include letter and number, exclude symbols like (<,>,=, ...)
+    "min_codepoint": ord("\u0030"),  # 0 ~ Digit Zero
+    "max_codepoint": ord("\u007A"),  # z ~ Latin Small Letter Z
+    "exclude_characters": [
+        "\u003A",
+        "\u003B",
+        "\u003C",
+        "\u003D",
+        "\u003E",
+        "\u003F",
+        "\u0040",
+        "\u005B",
+        "\u005C",
+        "\u005D",
+        "\u005E",
+        "\u005F",
+        "\u0060",
+        "\u007B",
+        "\u007C",
+        "\u007D",
+        "\u007E",
+    ],
+    # For categories visit: https://en.wikipedia.org/wiki/Unicode_character_property
+    # categories=("Lu", "Ll", "Lt", "Lm", "Nd", "Nl"),
+}
+
+VasCodec = Literal["ascii", "ascii_no_symbol_and_punctuation"]
+VAS_CODEC: list[VasCodec] = list(get_args(VasCodec))
+CODEC_OPTION_MAP: dict[VasCodec, dict[str, Any]] = {
+    "ascii": ASCII_OPTION,
+    "ascii_no_symbol_and_punctuation": ASCII_NO_SYMBOL_AND_PUNCTUATION_OPTION,
+}
+
+# List only used locales
+FK_ALL_BUILTIN_LOCALES = [
+    "en",
+    "en_US",
+    "en_CA",
+    "en_GB",
+    "en_IE",
+    "en_NZ",
+    "en_PH",
+    "en_TH",
+    "en_US",
+    "vi_VN",
+]
+FK_ALL_BUILTIN_PROVIDERS = [
+    "address",
+    "automotive",
+    "bank",
+    "barcode",
+    "color",
+    "company",
+    "credit_card",
+    "currency",
+    "date_time",
+    "emoji",
+    "file",
+    "geo",
+    "internet",
+    "isbn",
+    "job",
+    "lorem",
+    "misc",
+    "passport",
+    "person",
+    "phone_number",
+    "profile",
+    "python",
+    "sbn",
+    "ssn",
+    "user_agent",
+]
+FK_ALL_BUILTIN_PROVIDER_METHODS = [
+    # Base provider
+    "bothify",
+    "hexify",
+    "language_code",
+    "lexify",
+    "locale",
+    "numerify",
+    "random_choices",
+    "random_digit",
+    "random_digit_above_two",
+    "random_digit_not_null",
+    "random_digit_not_null_or_empty",
+    "random_digit_or_empty",
+    "random_element",
+    "random_elements",
+    "random_int",
+    "random_letter",
+    "random_letters",
+    "random_lowercase_letter",
+    "random_number",
+    "random_sample",
+    "random_uppercase_letter",
+    "randomize_nb_elements",
+    # -------------
+    # address
+    "address",
+    "building_number",
+    "city",
+    "city_suffix",
+    "country",
+    "country_code",
+    "current_country",
+    "current_country_code",
+    "postcode",
+    "street_address",
+    "street_name",
+    "street_suffix",
+    # -------------
+    # automotive
+    "license_plate",
+    "vin",
+    # -------------
+    # bank
+    "aba",
+    "bank_country",
+    "bban",
+    "iban",
+    "swift",
+    "swift11",
+    "swift8",
+    # -------------
+    # barcode
+    "ean",
+    "ean13",
+    "ean8",
+    "localized_ean",
+    "localized_ean13",
+    "localized_ean8",
+    # -------------
+    # color
+    "color",
+    "color_name",
+    "hex_color",
+    "rgb_color",
+    "rgb_css_color",
+    "safe_color_name",
+    "safe_hex_color",
+    # -------------
+    # company
+    "bs",
+    "catch_phrase",
+    "company",
+    "company_suffix",
+    # -------------
+    # credit_card
+    "credit_card_expire",
+    "credit_card_full",
+    "credit_card_number",
+    "credit_card_provider",
+    "credit_card_security_code",
+    # -------------
+    # currency
+    "cryptocurrency",
+    "cryptocurrency_code",
+    "cryptocurrency_name",
+    "currency",
+    "currency_code",
+    "currency_name",
+    "currency_symbol",
+    "pricetag",
+    # -------------
+    # date_time
+    "am_pm",
+    "century",
+    "date",
+    "date_between",
+    "date_between_dates",
+    "date_object",
+    "date_of_birth",
+    "date_this_century",
+    "date_this_decade",
+    "date_this_month",
+    "date_this_year",
+    "date_time",
+    "date_time_ad",
+    "date_time_between",
+    "date_time_between_dates",
+    "date_time_this_century",
+    "date_time_this_decade",
+    "date_time_this_month",
+    "date_time_this_year",
+    "day_of_month",
+    "day_of_week",
+    "future_date",
+    "future_datetime",
+    "iso8601",
+    "month",
+    "month_name",
+    "past_date",
+    "past_datetime",
+    "pytimezone",
+    "time",
+    "time_delta",
+    "time_object",
+    "time_series",
+    "timezone",
+    "unix_time",
+    "year",
+    # -------------
+    # emoji
+    "emoji",
+    # -------------
+    # file
+    "file_extension",
+    "file_name",
+    "file_path",
+    "mime_type",
+    "unix_device",
+    "unix_partition",
+    # -------------
+    # geo
+    "coordinate",
+    "latitude",
+    "latlng",
+    "local_latlng",
+    "location_on_land",
+    "longitude",
+    # -------------
+    # internet
+    "ascii_company_email",
+    "ascii_email",
+    "ascii_free_email",
+    "ascii_safe_email",
+    "company_email",
+    "dga",
+    "domain_name",
+    "domain_word",
+    "email",
+    "free_email",
+    "free_email_domain",
+    "hostname",
+    "http_method",
+    "iana_id",
+    "image_url",
+    "ipv4",
+    "ipv4_network_class",
+    "ipv4_private",
+    "ipv4_public",
+    "ipv6",
+    "mac_address",
+    "nic_handle",
+    "nic_handles",
+    "port_number",
+    "ripe_id",
+    "safe_domain_name",
+    "safe_email",
+    "slug",
+    "tld",
+    "uri",
+    "uri_extension",
+    "uri_page",
+    "uri_path",
+    "url",
+    "user_name",
+    # -------------
+    # isbn
+    "isbn10",
+    "isbn13",
+    # -------------
+    # job
+    "job",
+    # -------------
+    # lorem
+    "paragraph",
+    "paragraphs",
+    "sentence",
+    "sentences",
+    "text",
+    "texts",
+    "word",
+    "words",
+    # -------------
+    # misc
+    "binary",
+    "boolean",
+    "boolean",
+    "csv",
+    "dsv",
+    "fixed_width",
+    "image",
+    "json",
+    "json_bytes",
+    "md5",
+    "null_boolean",
+    "password",
+    "psv",
+    "sha1",
+    "sha256",
+    "tar",
+    "tsv",
+    "uuid4",
+    "xml",
+    "zip",
+    # -------------
+    # passport
+    "passport_dob",
+    "passport_number",
+    "passport_owner",
+    # -------------
+    # person
+    "first_name",
+    "first_name_female",
+    "first_name_male",
+    "first_name_nonbinary",
+    "language_name",
+    "last_name",
+    "last_name_female",
+    "last_name_male",
+    "last_name_nonbinary",
+    "name",
+    "name_female",
+    "name_male",
+    "name_nonbinary",
+    "prefix",
+    "prefix_female",
+    "prefix_male",
+    "prefix_nonbinary",
+    "suffix",
+    "suffix_female",
+    "suffix_male",
+    "suffix_nonbinary",
+    # -------------
+    # phone_number
+    "country_calling_code",
+    "msisdn",
+    "phone_number",
+    # -------------
+    # profile
+    "profile",
+    "simple_profile",
+    # -------------
+    # python
+    # "enum",
+    "pybool",
+    "pydecimal",
+    "pydict",
+    "pyfloat",
+    "pyint",
+    "pyiterable",
+    "pylist",
+    "pyobject",
+    "pyset",
+    "pystr",
+    "pystr_format",
+    "pystruct",
+    "pytuple",
+    # -------------
+    # sbn
+    "sbn9",
+    # -------------
+    # ssn
+    "ssn",
+    # -------------
+    # user_agent
+    "android_platform_token",
+    "chrome",
+    "firefox",
+    "internet_explorer",
+    "ios_platform_token",
+    "linux_platform_token",
+    "linux_processor",
+    "mac_platform_token",
+    "mac_processor",
+    "opera",
+    "safari",
+    "user_agent",
+    "windows_platform_token",
+    # -------------
+]
+
+fk = Faker(
+    use_weighting=False,
+)
+# Import all provider - use list to import instead of manual way
+for _, provider_name in enumerate(FK_ALL_BUILTIN_PROVIDERS):
+    provider_module = __import__(f"faker.providers.{provider_name}")
+    fk.add_provider(provider_module)
+# Check all method is callable
+for _, method_name in enumerate(FK_ALL_BUILTIN_PROVIDER_METHODS):
+    method = fk.__getattr__(method_name)
+    # print(f"{method_name} is callable: {isinstance(method, Callable)}")
+    assert isinstance(method, Callable)
+
+
+def get_faker_strategy(key: str) -> st.SearchStrategy[Union[str, None]]:
+    matched_method = None
+
+    for _, method_name in enumerate(FK_ALL_BUILTIN_PROVIDER_METHODS):
+        if is_key_match_method_name(key, method_name):
+            matched_method = method_name
+            break
+
+    if not matched_method:
+        return st.none()
+
+    def serialize(data: Any) -> str:
+        # Có thể gen ra
+        # int, float, bool, str, bytes, UUID: OK
+        # datetime.date, datetime.datetime, datetime.timedelta, datetime.timezone, datetime.time: OK
+        # list, tuple, set, Iterable, Sequence, Collection: OK
+        # dict: OK
+        # decimal.Decimal: OK,
+        # TODO: datetime.tzinfo, Iterator, Enum
+
+        if data == None:
+            return ""
+        if isinstance(data, str):
+            return data
+
+        if isinstance(data, (int, float, bool, timedelta, timezone, UUID)):
+            return str(data)
+        if isinstance(data, bytes):
+            return base64.b64encode(data).decode("utf-8")
+        if isinstance(data, (date, datetime, time)):
+            return data.isoformat()
+        if isinstance(data, Decimal):
+            return str(float(data))
+        if isinstance(data, (list, tuple, set, Iterable, Sequence, Collection)):
+            return ", ".join([serialize(ele) for _, ele in enumerate(data)])
+        if isinstance(data, (list, tuple, set)):
+            return ", ".join([serialize(ele) for _, ele in enumerate(data)])
+        if isinstance(data, (dict, Mapping)):
+            return ", ".join(
+                [f"{serialize(k)}: {serialize(v)}" for k, v in data.items()]
+            )
+
+        return data
+
+    method = fk.__getattr__(matched_method)
+    assert isinstance(method, Callable)
+    return st.just(serialize(method()))
+
+
+def is_key_match_method_name(key: str, method_name: str) -> bool:
+    # INFO: method_name sẽ có snake_case
+    # key API của 1 object có thể là các dạng: snake_case, camelCase, kebab-case, PascalCase
+    # Cần xử lý: ta sẽ đưa method name snake_case về camelCase, kebab-case, và PascalCase
+
+    def get_variant_keys():
+        def get_normalized_keys(unnormalized_key: str):
+            normalized_key = unnormalized_key.strip().replace(" ", "")
+            lower_key = unnormalized_key.lower()
+
+            return [normalized_key, lower_key]
+
+        def get_no_underscore_keys(undescore_keys: list[str]):
+            return map(
+                lambda undescore_key: undescore_key.replace("_", ""), undescore_keys
+            )
+
+        def get_no_hyphen_keys(hyphen_keys: list[str]):
+            return map(lambda hyphen_key: hyphen_key.replace("-", ""), hyphen_keys)
+
+        normalized_keys = get_normalized_keys(key)
+        return [
+            *normalized_keys,
+            *get_no_underscore_keys(normalized_keys),
+            *get_no_hyphen_keys(normalized_keys),
+        ]
+
+    def get_variant_method_names():
+        def snake_to_camel():
+            splits = method_name.lower().split("_")
+            return splits[0] + "".join(ele.title() for ele in splits[1:])
+
+        def snake_to_kebab():
+            splits = method_name.lower().split("_")
+            return "-".join(splits)
+
+        def snake_to_pascal():
+            splits = method_name.lower().split("_")
+            return "".join(ele.title() for ele in splits)
+
+        def get_no_underscore_method_names(undescore_method_names: list[str]):
+            return map(
+                lambda undescore_method_name: undescore_method_name.replace("_", ""),
+                undescore_method_names,
+            )
+
+        def get_no_hyphen_method_names(hyphen_method_names: list[str]):
+            return map(
+                lambda hyphen_method_name: hyphen_method_name.replace("-", ""),
+                hyphen_method_names,
+            )
+
+        normalized_method_names = [
+            method_name,
+            snake_to_camel(),
+            snake_to_pascal(),
+            snake_to_kebab(),
+        ]
+        return [
+            *get_no_underscore_method_names(normalized_method_names),
+            *get_no_hyphen_method_names(normalized_method_names),
+        ]
+
+    def is_key_match(key: str):
+        return key in get_variant_method_names()
+
+    return any(
+        map(
+            lambda k: is_key_match(k),
+            get_variant_keys(),
+        )
+    )

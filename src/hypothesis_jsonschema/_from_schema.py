@@ -19,6 +19,13 @@ from hypothesis.internal.conjecture import utils as cu
 from hypothesis.strategies._internal.regex import regex_strategy
 from hypothesis.strategies._internal.strings import OneCharStringStrategy
 
+from hypothesis_jsonschema._vas import (
+    ASCII_OPTION,
+    CODEC_OPTION_MAP,
+    VAS_CODEC,
+    get_faker_strategy,
+)
+
 from ._canonicalise import (
     FALSEY,
     TRUTHY,
@@ -53,11 +60,25 @@ class CharStrategy(OneCharStringStrategy):
 
     @classmethod
     def from_args(cls, *, allow_x00: bool, codec: Optional[str]) -> "CharStrategy":
+        # self: CharStrategy = cls.from_characters_args(
+        #     min_codepoint=0 if allow_x00 else 1, codec=codec
+        # )
+        # self.allow_x00 = allow_x00
+        # self.codec = codec
+
+        # print(codec)
+        if codec not in VAS_CODEC:
+            # print("IN if")
+            codec = VAS_CODEC[0]
+        allow_x00 = False
+        # print(CODEC_OPTION_MAP[codec].values())
+        # self: CharStrategy = cls.from_characters_args(**CODEC_OPTION_MAP[codec])
         self: CharStrategy = cls.from_characters_args(
-            min_codepoint=0 if allow_x00 else 1, codec=codec
+            **CODEC_OPTION_MAP["ascii_no_symbol_and_punctuation"]
         )
         self.allow_x00 = allow_x00
-        self.codec = codec
+        self.codec = codec.split("_")[0]
+
         return self
 
     def check_name_allowed(self, name: str) -> None:
@@ -345,7 +366,8 @@ def rfc3339(name: str) -> st.SearchStrategy[str]:
     if name in ("date", "full-date"):
         return st.dates().map(str)
     if name in ("time", "full-time"):
-        return st.tuples(rfc3339("partial-time"), rfc3339("time-offset")).map("".join)
+        # return st.tuples(rfc3339("partial-time"), rfc3339("time-offset")).map("".join)
+        return st.tuples(rfc3339("partial-time")).map("".join)
     assert name == "date-time"
     return st.tuples(rfc3339("full-date"), rfc3339("full-time")).map("T".join)
 
@@ -622,8 +644,8 @@ def object_schema(
     # schema for other values; handled specially if nothing matches
     additional = schema.get("additionalProperties", {})
 
-    # Original additional_allowed = additional != FALSEY
-    additional_allowed = FALSEY
+    # additional_allowed = additional != FALSEY
+    additional_allowed = additional != {}
 
     for key in list(patterns):
         try:
@@ -659,7 +681,7 @@ def object_schema(
     all_names_strategy = st.one_of([s for s in name_strats if not s.is_empty])
 
     @st.composite  # type: ignore
-    def from_object_schema(draw: Any) -> Any:
+    def from_object_schema(draw: st.DrawFn) -> Any:
         """Do some black magic with private Hypothesis internals for objects.
 
         It's unfortunate, but also the only way that I know of to satisfy all
@@ -697,15 +719,44 @@ def object_schema(
             if key in properties:
                 pattern_schemas.insert(0, properties[key])
 
+            # if pattern_schemas:
+            #     out[key] = draw(merged_as_strategies(pattern_schemas, custom_formats))
+            # else:
+            #     out[key] = draw(
+            #         __from_schema(
+            #             additional, custom_formats=custom_formats, alphabet=alphabet
+            #         )
+            #     )
+
             if pattern_schemas:
-                out[key] = draw(merged_as_strategies(pattern_schemas, custom_formats))
+                # Sẽ áp dụng faker cho những trường hợp sau:
+                # 1. "type": "string", không có format
+                # 2. "type": "string", có format nhưng không nằm trong known_formats
+                # 2. "type": "string", không có pattern
+
+                key_schema = pattern_schemas[0]
+                type_of_key_schema = key_schema.get("type", None)
+                format_of_key_schema = key_schema.get("format", None)
+                pattern_of_key_schema = key_schema.get("pattern", None)
+                known_string_formats = {**STRING_FORMATS, **(custom_formats or {})}
+
+                if (type_of_key_schema == "string") and (
+                    (format_of_key_schema not in known_string_formats)
+                    or (pattern_of_key_schema is None)
+                ):
+                    out[key] = draw(get_faker_strategy(key))
+
+                if type_of_key_schema != "string" or out[key] == None:
+                    out[key] = draw(
+                        merged_as_strategies(pattern_schemas, custom_formats)
+                    )
+
             else:
                 out[key] = draw(
                     __from_schema(
                         additional, custom_formats=custom_formats, alphabet=alphabet
                     )
                 )
-
             for k, v in dep_schemas.items():
                 if k in out and not make_validator(v).is_valid(out):
                     out.pop(key)
