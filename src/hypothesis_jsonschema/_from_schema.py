@@ -326,6 +326,7 @@ def number_schema(schema: dict) -> st.SearchStrategy[float]:
         max_value=max_value,
         allow_nan=False,
         allow_infinity=False,
+        allow_subnormal=False,
         exclude_min=exclude_min,
         exclude_max=exclude_max,
         # Filter out negative-zero as it does not exist in JSON
@@ -485,7 +486,7 @@ def string_schema(
 ) -> st.SearchStrategy[str]:
     """Handle schemata for strings."""
     # also https://json-schema.org/latest/json-schema-validation.html#rfc.section.7
-    min_size = schema.get("minLength", 0)
+    min_size = schema.get("minLength", 1)
     max_size = schema.get("maxLength")
 
     strategy = st.text(alphabet, min_size=min_size, max_size=max_size)

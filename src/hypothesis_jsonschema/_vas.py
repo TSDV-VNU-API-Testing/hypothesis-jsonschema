@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
+from importlib import import_module
 from typing import (
     Any,
     Callable,
@@ -72,7 +73,7 @@ CODEC_OPTION_MAP: dict[VasCodec, dict[str, Any]] = {
 }
 
 # List only used locales
-FK_ALL_BUILTIN_LOCALES = [
+FAKER_ALL_BUILTIN_LOCALES = [
     "en",
     "en_US",
     "en_CA",
@@ -84,7 +85,7 @@ FK_ALL_BUILTIN_LOCALES = [
     "en_US",
     "vi_VN",
 ]
-FK_ALL_BUILTIN_PROVIDERS = [
+FAKER_BUILTIN_PROVIDERS = [
     "address",
     "automotive",
     "bank",
@@ -111,7 +112,7 @@ FK_ALL_BUILTIN_PROVIDERS = [
     "ssn",
     "user_agent",
 ]
-FK_ALL_BUILTIN_PROVIDER_METHODS = [
+FAKER_BUILTIN_PROVIDER_METHODS = [
     # Base provider
     "bothify",
     "hexify",
@@ -411,17 +412,154 @@ FK_ALL_BUILTIN_PROVIDER_METHODS = [
     "windows_platform_token",
     # -------------
 ]
+FAKER_COMMUNITY_PROVIDERS = [
+    "faker_airtravel.AirTravelProvider",
+    "faker_biology.physiology.CellType",
+    "faker_biology.physiology.Organ",
+    "faker_biology.physiology.Organelle",
+    "faker_biology.bioseq.Bioseq",
+    "faker_biology.mol_biol.Antibody",
+    "faker_biology.mol_biol.RestrictionEnzyme",
+    "faker_biology.mol_biol.Enzyme",
+    "faker_biology.taxonomy.ModelOrganism",
+    "faker_credit_score.CreditScore",
+    "faker_education.SchoolProvider",
+    "faker_marketdata.MarketDataProvider",
+    "faker_microservice.Provider",
+    "faker_music.MusicProvider",
+    "mdgen.MarkdownPostProvider",
+    "faker_vehicle.VehicleProvider",
+    "faker_web.WebProvider",
+    "faker_wifi_essid.WifiESSID",
+]
+FAKER_COMMUNITY_PROVIDER_METHODS = [
+    # air travel
+    "airport_object",
+    "airport_name",
+    "airport_iata",
+    "airport_icao",
+    "airline",
+    "flight",
+    # biology
+    "organ",
+    "celltype",
+    "common_eukaryotic_organelle",
+    "plant_organelle",
+    "animal_organelle",
+    "organelle",
+    "dna",
+    "rna",
+    "stop_codon",
+    "cds",
+    "protein",
+    "protein_name",
+    "protein_desc",
+    "protein_name_desc",
+    "amino_acid",
+    "amino_acid_name",
+    "amino_acid_3_letters",
+    "amino_acid_1_letter",
+    "amino_acid_mass",
+    "antibody_isotype",
+    "antibody_application",
+    "antibody_source",
+    "dilution",
+    "restriction_enzyme",
+    "restriction_enzyme_data",
+    "blunt",
+    "sticky",
+    "enzyme_category",
+    "enzyme",
+    "organism_english",
+    "organism_latin",
+    "organism",
+    # credit score
+    "credit_score_name",
+    "credit_score_provider",
+    "credit_score",
+    "credit_score_full",
+    # education
+    "school_object",
+    "school_name",
+    "school_nces_id",
+    "school_district",
+    "school_level",
+    "school_type",
+    "school_state",
+    # market data
+    "isin",
+    "sedol",
+    "mic",
+    "lei",
+    "cusip",
+    "ric",
+    "ticker",
+    "nsin",
+    "figi",
+    "marketType",
+    # microservice
+    "microservice",
+    # music
+    "music_genre_object",
+    "music_genre",
+    "music_subgenre",
+    "music_instrument_object",
+    "music_instrument",
+    "music_instrument_category",
+    "post",
+    # vehicle
+    "vehicle_object",
+    "vehicle_year_make_model",
+    "vehicle_year_make_model_cat",
+    "vehicle_make_model",
+    "vehicle_make",
+    "vehicle_year",
+    "vehicle_model",
+    "vehicle_category",
+    "machine_object",
+    "machine_year_make_model",
+    "machine_year_make_model_cat",
+    "machine_make_model",
+    "machine_make",
+    "machine_year",
+    "machine_model",
+    "machine_category",
+    # web
+    "content_type",
+    "content_type_popular",
+    "apache",
+    "nginx",
+    "iis",
+    "server_token",
+    # wifi essid
+    "common_essid",
+    "upc_default_essid",
+    "bbox_default_essid",
+    "wifi_essid",
+]
+FAKER_ALL_PROVIDER_METHODS = [
+    *FAKER_BUILTIN_PROVIDER_METHODS,
+    *FAKER_COMMUNITY_PROVIDER_METHODS,
+]
 
-fk = Faker(
+FAKER = Faker(
     use_weighting=False,
 )
 # Import all provider - use list to import instead of manual way
-for _, provider_name in enumerate(FK_ALL_BUILTIN_PROVIDERS):
-    provider_module = __import__(f"faker.providers.{provider_name}")
-    fk.add_provider(provider_module)
+for _, provider_name in enumerate(FAKER_BUILTIN_PROVIDERS):
+    provider_module = import_module(f"faker.providers.{provider_name}")
+    FAKER.add_provider(provider_module)
+# With community provider, have to import class
+for _, provider_name in enumerate(FAKER_COMMUNITY_PROVIDERS):
+    splits = provider_name.split(".")
+    module_path = ".".join([submodule for submodule in splits[0 : len(splits) - 1]])
+    class_name = splits[-1]
+    provider_module = import_module(module_path)
+    provider_class = getattr(provider_module, class_name)
+    FAKER.add_provider(provider_class)
 # Check all method is callable
-for _, method_name in enumerate(FK_ALL_BUILTIN_PROVIDER_METHODS):
-    method = fk.__getattr__(method_name)
+for _, method_name in enumerate(FAKER_ALL_PROVIDER_METHODS):
+    method = FAKER.__getattr__(method_name)
     # print(f"{method_name} is callable: {isinstance(method, Callable)}")
     assert isinstance(method, Callable)
 
@@ -429,7 +567,7 @@ for _, method_name in enumerate(FK_ALL_BUILTIN_PROVIDER_METHODS):
 def get_faker_strategy(key: str) -> st.SearchStrategy[Union[str, None]]:
     matched_method = None
 
-    for _, method_name in enumerate(FK_ALL_BUILTIN_PROVIDER_METHODS):
+    for _, method_name in enumerate(FAKER_ALL_PROVIDER_METHODS):
         if is_key_match_method_name(key, method_name):
             matched_method = method_name
             break
@@ -470,7 +608,7 @@ def get_faker_strategy(key: str) -> st.SearchStrategy[Union[str, None]]:
 
         return data
 
-    method = fk.__getattr__(matched_method)
+    method = FAKER.__getattr__(matched_method)
     assert isinstance(method, Callable)
     return st.just(serialize(method()))
 
