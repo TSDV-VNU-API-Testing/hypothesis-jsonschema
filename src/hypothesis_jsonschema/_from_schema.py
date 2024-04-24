@@ -618,9 +618,9 @@ def array_schema(
             unique_by=encode_canonical_json if unique else None,
         )
     if "contains" not in schema:
-        return strat
+        return strat # type: ignore
     contains = make_validator(schema["contains"]).is_valid
-    return strat.filter(lambda val: any(contains(x) for x in val))
+    return strat.filter(lambda val: any(contains(x) for x in val)) # type: ignore
 
 
 def object_schema(
