@@ -1,14 +1,20 @@
 """A Hypothesis extension for JSON schemata."""
 
+import base64
 import itertools
 import math
 import operator
+import random
 import re
+import time
 import warnings
+import os
+from PIL import Image
 from fractions import Fraction
 from functools import partial
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Union
 
+from hypothesis.strategies._internal.core import data
 import jsonschema
 import jsonschema.exceptions
 from hypothesis import assume
@@ -150,6 +156,7 @@ def from_schema(
     recursive references.
     """
     try:
+        print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: -> from_schema")
         return __from_schema(
             schema,
             custom_formats=custom_formats,
@@ -192,6 +199,20 @@ def __from_schema(
 ) -> st.SearchStrategy[JSONType]:
     try:
         schema = resolve_all_refs(schema)
+        # if "properties" in schema:
+        #     for field_name, field_data in schema["properties"].items():
+        #         if "format" in field_data and field_data["format"] == "binary":
+        #             field_data["meta-data"] = {
+        #                 "imageName": {
+        #                     "type": "string",
+        #                     "default": "console.png"
+        #                 },
+        #                 "size": {
+        #                     "type": "string",
+        #                     "default": ""
+        #                 }
+        #             }
+
     except RecursionError:
         raise HypothesisRefResolutionError(
             f"Could not resolve recursive references in schema={schema!r}"
@@ -271,7 +292,13 @@ def __from_schema(
         return st.sampled_from(schema["enum"])
     if "const" in schema:
         return st.just(schema["const"])
+    # if "properties" in schema:
+    #     for field_name, field_data in schema["properties"].items():
+    #         if "format" in field_data and field_data["format"] == "binary":
+    #             print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: -> generate image:")
+    #             return binary_image_schema
     # Finally, resolve schema by type - defaulting to "object"
+    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: -> prepare gen data")
     map_: Dict[str, Callable[[Schema], st.SearchStrategy[JSONType]]] = {
         "null": lambda _: st.none(),
         "boolean": lambda _: st.booleans(),
@@ -284,6 +311,37 @@ def __from_schema(
     assert set(map_) == set(TYPE_STRINGS)
     return st.one_of([map_[t](schema) for t in get_type(schema)])
 
+
+def generate_random_image(data_path) -> Image.Image:
+    """Choose a random image in image dataset"""
+    if not os.path.isdir(data_path):
+        raise ValueError(f"Image data directory {data_path} does not exist.")
+    image_files = []
+    for root, _, files in os.walk(data_path):
+        for f in files:
+            image_files.append(os.path.join(root, f))
+    random.seed(time.time())
+    num = random.randint(0, len(image_files))
+    print(">>>>>>>>>>>>>>>Image number: ", image_files[num])
+    return image_files[num]
+
+# def binary_image_schema(schema: dict) -> st.SearchStrategy[bytes]:
+#     """Return a strategy which generate image data"""
+#     return st.just(encode_image("server/public/images-catalog"))
+
+def encode_image(data_path):
+  """Chooses a random image and encodes it to Base64 using Pillow.
+
+  Args:
+      data_path (str): Path to the image dataset directory.
+
+  Returns:
+      str: Base64 encoded string representation of the randomly chosen image.
+  """
+  image_path = generate_random_image(data_path)  # Use your existing function
+  with Image.open(image_path) as image:
+    image_buffer = image.convert('RGB').tobytes()
+  return base64.b64encode(image_buffer)
 
 def _numeric_with_multiplier(
     min_value: Optional[float], max_value: Optional[float], schema: Schema
@@ -318,6 +376,8 @@ def integer_schema(schema: dict) -> st.SearchStrategy[float]:
 
 def number_schema(schema: dict) -> st.SearchStrategy[float]:
     """Handle numeric schemata."""
+
+    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py:number_schema -> generating number data")
     min_value, max_value, exclude_min, exclude_max = get_number_bounds(schema)
     if "multipleOf" in schema:
         return _numeric_with_multiplier(min_value, max_value, schema)
@@ -489,6 +549,8 @@ def string_schema(
     min_size = schema.get("minLength", 1)
     max_size = schema.get("maxLength")
 
+    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: string_schema -> format: ", schema.get("format"))
+
     strategy = st.text(alphabet, min_size=min_size, max_size=max_size)
 
     known_formats = {**STRING_FORMATS, **(custom_formats or {})}
@@ -518,8 +580,13 @@ def string_schema(
     if ("format" in schema or "pattern" in schema) and (
         min_size != 0 or max_size is not None
     ):
-        max_size = math.inf if max_size is None else max_size
-        strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
+        if schema.get("format") == "binary":
+            # strategy = binary_image_schema
+            strategy = st.just(encode_image("public/images-catalog"))
+        else:
+            max_size = math.inf if max_size is None else max_size
+            strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
+    print("Choosen strategy is : ", strategy)
     return strategy
 
 
@@ -641,9 +708,11 @@ def object_schema(
     names["type"] = "string"
 
     properties = schema.get("properties", {})  # exact name: value schema
+    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: properties in object_schema -> ", properties)
     patterns = schema.get("patternProperties", {})  # regex for names: value schema
     # schema for other values; handled specially if nothing matches
     additional = schema.get("additionalProperties", {})
+    meta_data = schema.get("meta-data", {})
 
     # additional_allowed = additional != FALSEY
     additional_allowed = additional != {}
@@ -681,7 +750,7 @@ def object_schema(
     )
     all_names_strategy = st.one_of([s for s in name_strats if not s.is_empty])
 
-    @st.composite  # type: ignore
+    @st.composite 
     def from_object_schema(draw: st.DrawFn) -> Any:
         """Do some black magic with private Hypothesis internals for objects.
 
