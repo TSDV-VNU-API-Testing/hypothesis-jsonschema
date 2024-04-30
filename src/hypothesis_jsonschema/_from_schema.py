@@ -1,21 +1,16 @@
 """A Hypothesis extension for JSON schemata."""
 
-import base64
-from email.mime import image
 import itertools
 import math
 import operator
 import random
 import re
-import time
 import warnings
-import os
-from PIL import Image
 from fractions import Fraction
 from functools import partial
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Union
-
-from hypothesis.strategies._internal.core import data
+import os
+import base64
 import jsonschema
 import jsonschema.exceptions
 from hypothesis import assume
@@ -25,7 +20,7 @@ from hypothesis.errors import HypothesisWarning, InvalidArgument
 from hypothesis.internal.conjecture import utils as cu
 from hypothesis.strategies._internal.regex import regex_strategy
 from hypothesis.strategies._internal.strings import OneCharStringStrategy
-
+from PIL import Image, ExifTags  # Đảm bảo nhập cả ExifTags
 from hypothesis_jsonschema._vas import (
     ASCII_OPTION,
     CODEC_OPTION_MAP,
@@ -157,7 +152,6 @@ def from_schema(
     recursive references.
     """
     try:
-        print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: -> from_schema")
         return __from_schema(
             schema,
             custom_formats=custom_formats,
@@ -200,25 +194,49 @@ def __from_schema(
 ) -> st.SearchStrategy[JSONType]:
     try:
         schema = resolve_all_refs(schema)
-        image_directory = "/home/cheesedz/vas/server/public/images-catalog"
-        image_extensions = (".jpeg", ".jpg", ".png", ".bmp", ".gif")
-        image_paths = [os.path.join(image_directory, f) for f in os.listdir(image_directory) if f.lower().endswith(image_extensions)]
-        if "properties" in schema:
-            for field_name, field_data in schema["properties"].items():
-                if "format" in field_data and field_data["format"] == "binary":
-                    field_data["meta-data"] = {
+        print(">>>>>>>>>>>>vas/deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py")
+        images_directory = '/home/thinh/vas/server/public/img'
+        image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+        image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
+
+        # In ra danh sách các đường dẫn hình ảnh
+        # for img_path in image_paths:
+        #     print(">>>>>>>>>>>>>>>>>>>>>>>>>>>> image_paths", img_path)
+        if 'properties' in schema:
+            for field, details in schema['properties'].items():
+                if 'random_number' in details:
+                    details['metadata'] = {
                         "imageName": {
                             "type": "string",
-                            "default": "console.png"
+                            "default": "image.jpg"
                         },
                         "size": {
                             "type": "string",
                             "default": "5MB"
                         }
                     }
-                    random.seed(time.time())
-                    field_data["index"] = random.randint(0, len(image_paths))
-
+                    # Chuyển đổi random_number sang int và kiểm tra xem có tồn tại trong danh sách đường dẫn ảnh không
+                    random_number = int(details['random_number'])
+                    if random_number < len(image_paths):
+                        image_path = image_paths[random_number]
+                        if os.path.isfile(image_path):
+                            # Mở tệp ảnh sử dụng PIL để lấy thông tin EXIF, nếu cần
+                            with Image.open(image_path) as img:
+                                details['metadata']['imageName']['default'] = os.path.basename(image_path)
+                                exif_data = img._getexif()
+                                if exif_data:
+                                    # Lấy kích thước tệp và cập nhật metadata
+                                    file_size = os.path.getsize(image_path)
+                                    details['metadata']['size']['default'] = str(file_size)
+                                else:
+                                    print("Không có thông tin EXIF hoặc không thể truy xuất.")
+                        else:
+                            print(f"File not found: {image_path}")
+                    else:
+                        print(f"Index out of range: {random_number}")           
+        
+        print(">>>vas/deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py", schema)
+        
     except RecursionError:
         raise HypothesisRefResolutionError(
             f"Could not resolve recursive references in schema={schema!r}"
@@ -298,13 +316,7 @@ def __from_schema(
         return st.sampled_from(schema["enum"])
     if "const" in schema:
         return st.just(schema["const"])
-    # if "properties" in schema:
-    #     for field_name, field_data in schema["properties"].items():
-    #         if "format" in field_data and field_data["format"] == "binary":
-    #             print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: -> generate image:")
-    #             return binary_image_schema
     # Finally, resolve schema by type - defaulting to "object"
-    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: -> prepare gen data")
     map_: Dict[str, Callable[[Schema], st.SearchStrategy[JSONType]]] = {
         "null": lambda _: st.none(),
         "boolean": lambda _: st.booleans(),
@@ -323,47 +335,6 @@ def __from_schema(
 #     image_paths = [os.path.join(image_directory, f) 
 #                    for f in os.listdir(image_directory) if f.lower().endswith(image_extensions)]
 #     return image_paths
-
-def generate_random_image(data_path) -> Image.Image:
-    """Choose a random image in image dataset"""
-    image_extensions = (".jpeg", ".jpg", ".png", ".bmp", ".gif")
-    if not os.path.isdir(data_path):
-        raise ValueError(f"Image data directory {data_path} does not exist.")
-    image_files = []
-    for root, _, files in os.walk(data_path):
-        for f in files:
-            if f.lower().endswith(image_extensions):
-                image_files.append(os.path.join(root, f))
-    random.seed(time.time())
-    num = random.randint(0, len(image_files))
-    print(">>>>>>>>>>>>>>>Image number: ", image_files[num])
-    return image_files[num]
-
-# def binary_image_schema(schema: dict) -> st.SearchStrategy[bytes]:
-#     """Return a strategy which generate image data"""
-#     return st.just(encode_image("server/public/images-catalog"))
-
-def encode_image(data_path):
-    """Chooses a random image and encodes it to Base64 using Pillow.
-
-    Args:
-        data_path (str): Path to the image dataset directory.
-
-    Returns:
-        str: Base64 encoded string representation of the randomly chosen image.
-    """
-    image_path = generate_random_image(data_path)  # Use your existing function
-    with Image.open(image_path) as image:
-        image_buffer = image.convert('RGB').tobytes()
-    return base64.b64encode(image_buffer)
-
-def extract_image_name(path):
-    last_slash_index = path.rfind("/")
-
-    if last_slash_index != -1:
-        return path[last_slash_index + 1:]
-    else:
-        return path
 
 def _numeric_with_multiplier(
     min_value: Optional[float], max_value: Optional[float], schema: Schema
@@ -398,8 +369,6 @@ def integer_schema(schema: dict) -> st.SearchStrategy[float]:
 
 def number_schema(schema: dict) -> st.SearchStrategy[float]:
     """Handle numeric schemata."""
-
-    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py:number_schema -> generating number data")
     min_value, max_value, exclude_min, exclude_max = get_number_bounds(schema)
     if "multipleOf" in schema:
         return _numeric_with_multiplier(min_value, max_value, schema)
@@ -581,8 +550,6 @@ def string_schema(
     min_size = schema.get("minLength", 1)
     max_size = schema.get("maxLength")
 
-    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: string_schema -> format: ", schema.get("format"))
-
     strategy = st.text(alphabet, min_size=min_size, max_size=max_size)
 
     known_formats = {**STRING_FORMATS, **(custom_formats or {})}
@@ -614,24 +581,20 @@ def string_schema(
     ):
         if schema.get("format") == "binary":
             # strategy = binary_image_schema
-            strategy = st.just(extract_image_name(generate_random_image("/home/cheesedz/vas/server/public/images-catalog")))
-            # image_path = generate_random_image("public/images-catalog")
-            # image_size = Image.open(image_path).size
-            # strategy = st.just(
-            #     """
-            #     "image": {
-            #         'imageName': {image_path}
-            #         'size': {image_size}
-            #     } """
-            # )
-            # strategy = custom_image_strategy
-
-            # schema["meta-data"]["imageName"] = extract_image_name(image_path)
-            # schema["meta-data"]["size"] = Image.open(image_path).size
+            images_directory = '/home/thinh/vas/server/public/img'
+            image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+            image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
+            random_number = int(schema['random_number'])
+            if random_number < len(image_paths):
+                image_path = image_paths[random_number]
+                # Đọc dữ liệu ảnh từ tệp và mã hóa bằng base64
+                with open(image_path, 'rb') as image_file:
+                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
+                    image_object = image_path.split('/')
+                    strategy = st.just(image_object[len(image_object) - 1])
         else:
             max_size = math.inf if max_size is None else max_size
             strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
-    # print("Choosen strategy is : ", strategy)
     return strategy
 
 
@@ -730,9 +693,9 @@ def array_schema(
             unique_by=encode_canonical_json if unique else None,
         )
     if "contains" not in schema:
-        return strat # type: ignore
+        return strat
     contains = make_validator(schema["contains"]).is_valid
-    return strat.filter(lambda val: any(contains(x) for x in val)) # type: ignore
+    return strat.filter(lambda val: any(contains(x) for x in val))
 
 
 def object_schema(
@@ -761,7 +724,6 @@ def object_schema(
     patterns = schema.get("patternProperties", {})  # regex for names: value schema
     # schema for other values; handled specially if nothing matches
     additional = schema.get("additionalProperties", {})
-    meta_data = schema.get("meta-data", {})
 
     # additional_allowed = additional != FALSEY
     additional_allowed = additional != {}
@@ -799,7 +761,7 @@ def object_schema(
     )
     all_names_strategy = st.one_of([s for s in name_strats if not s.is_empty])
 
-    @st.composite 
+    @st.composite  # type: ignore
     def from_object_schema(draw: st.DrawFn) -> Any:
         """Do some black magic with private Hypothesis internals for objects.
 
