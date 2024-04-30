@@ -4,6 +4,7 @@ import itertools
 import math
 import operator
 import random
+import time
 import re
 import warnings
 from fractions import Fraction
@@ -194,49 +195,39 @@ def __from_schema(
 ) -> st.SearchStrategy[JSONType]:
     try:
         schema = resolve_all_refs(schema)
-        print(">>>>>>>>>>>>vas/deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py")
-        images_directory = '/home/thinh/vas/server/public/img'
+        images_directory = 'public/img'
         image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
         image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
 
-        # In ra danh sách các đường dẫn hình ảnh
-        # for img_path in image_paths:
-        #     print(">>>>>>>>>>>>>>>>>>>>>>>>>>>> image_paths", img_path)
-        if 'properties' in schema:
-            for field, details in schema['properties'].items():
-                if 'random_number' in details:
-                    details['metadata'] = {
-                        "imageName": {
-                            "type": "string",
-                            "default": "image.jpg"
-                        },
-                        "size": {
-                            "type": "string",
-                            "default": "5MB"
-                        }
-                    }
-                    # Chuyển đổi random_number sang int và kiểm tra xem có tồn tại trong danh sách đường dẫn ảnh không
-                    random_number = int(details['random_number'])
-                    if random_number < len(image_paths):
+        print("Schema: ", schema)
+        if "properties" in schema:
+            # Check if schema["properties"] is a dictionary
+            if not isinstance(schema["properties"], dict):
+                # If not, initialize it as an empty dictionary
+                schema["properties"] = {}
+
+            for field, details in schema["properties"].items():
+                if "format" in details:
+                    if details["format"] == "binary":
+                        # Generate a random number in range of image_path"s size
+                        random.seed(time.time())
+                        random_number = random.randint(0, len(image_paths) - 1)
                         image_path = image_paths[random_number]
-                        if os.path.isfile(image_path):
-                            # Mở tệp ảnh sử dụng PIL để lấy thông tin EXIF, nếu cần
-                            with Image.open(image_path) as img:
-                                details['metadata']['imageName']['default'] = os.path.basename(image_path)
-                                exif_data = img._getexif()
-                                if exif_data:
-                                    # Lấy kích thước tệp và cập nhật metadata
-                                    file_size = os.path.getsize(image_path)
-                                    details['metadata']['size']['default'] = str(file_size)
-                                else:
-                                    print("Không có thông tin EXIF hoặc không thể truy xuất.")
-                        else:
-                            print(f"File not found: {image_path}")
-                    else:
-                        print(f"Index out of range: {random_number}")           
-        
-        print(">>>vas/deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py", schema)
-        
+                        # Inject imageName field into properties
+                        schema["properties"].setdefault("imageName", {
+                            "type": "string",
+                            "belong": field,
+                            "default": os.path.basename(image_path)
+                        })  
+
+                        # Inject size field into properties
+                        file_size = os.path.getsize(image_path)
+                        schema["properties"].setdefault("size", {
+                            "type": "string",
+                            "belong": field,
+                            "default": file_size
+                        })  
+        print("Schema: ", schema)
     except RecursionError:
         raise HypothesisRefResolutionError(
             f"Could not resolve recursive references in schema={schema!r}"
@@ -264,7 +255,7 @@ def __from_schema(
             name: _get_format_filter(name, format_checker, strategy)
             for name, strategy in custom_formats.items()
         }
-        custom_formats[_FORMATS_TOKEN] = None  # type: ignore
+        custom_formats[_FORMATS_TOKEN] = None  
 
     schema = canonicalish(schema)
     # Boolean objects are special schemata; False rejects all and True accepts all.
@@ -346,12 +337,12 @@ def _numeric_with_multiplier(
         min_value = math.ceil(Fraction(min_value) / Fraction(multiple_of))
     if max_value is not None:
         max_value = math.floor(Fraction(max_value) / Fraction(multiple_of))
-    if min_value is not None and max_value is not None and min_value > max_value:  # type: ignore[unreachable]
+    if min_value is not None and max_value is not None and min_value > max_value:  
         # You would think that this is impossible, but it can happen if multipleOf
         # is very small and the bounds are very close togther.  It would be nicer
         # to deal with this when canonicalising, but suffice to say we can't without
         # diverging from the floating-point behaviour of the upstream validator.
-        return st.nothing()  # type: ignore[unreachable]
+        return st.nothing()
     return (
         st.integers(min_value, max_value)
         .map(lambda x: x * multiple_of)
@@ -424,7 +415,7 @@ def rfc3339(name: str) -> st.SearchStrategy[str]:
     return st.tuples(rfc3339("full-date"), rfc3339("full-time")).map("T".join)
 
 
-@st.composite  # type: ignore
+@st.composite  
 def regex_patterns(draw: Any) -> str:
     """Return a recursive strategy for simple regular expression patterns."""
     fragments = st.one_of(
@@ -579,20 +570,20 @@ def string_schema(
     if ("format" in schema or "pattern" in schema) and (
         min_size != 0 or max_size is not None
     ):
-        if schema.get("format") == "binary":
-            # strategy = binary_image_schema
-            images_directory = '/home/thinh/vas/server/public/img'
-            image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
-            image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
-            random_number = int(schema['random_number'])
-            if random_number < len(image_paths):
-                image_path = image_paths[random_number]
-                # Đọc dữ liệu ảnh từ tệp và mã hóa bằng base64
-                with open(image_path, 'rb') as image_file:
-                    image_data = base64.b64encode(image_file.read()).decode('utf-8')
-                    image_object = image_path.split('/')
-                    strategy = st.just(image_object[len(image_object) - 1])
-        else:
+        # if schema.get("format") == "binary":
+        #     # strategy = binary_image_schema
+        #     images_directory = './public/img'
+        #     image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+        #     image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
+        #     random_number = int(schema['random_number'])
+        #     if random_number < len(image_paths):
+        #         image_path = image_paths[random_number]
+        #         # Đọc dữ liệu ảnh từ tệp và mã hóa bằng base64
+        #         with open(image_path, 'rb') as image_file:
+        #             image_data = base64.b64encode(image_file.read()).decode('utf-8')
+        #             image_object = image_path.split('/')
+        #             strategy = st.just(image_object[len(image_object) - 1])
+        # else:
             max_size = math.inf if max_size is None else max_size
             strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
     return strategy
@@ -641,7 +632,7 @@ def array_schema(
 
         if unique:
 
-            @st.composite  # type: ignore
+            @st.composite  
             def compose_lists_with_filter(draw: Any) -> List[JSONType]:
                 elems = []
                 seen: Set[str] = set()
@@ -716,11 +707,7 @@ def object_schema(
     names["type"] = "string"
 
     properties = schema.get("properties", {})  # exact name: value schema
-    print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: properties in object_schema -> ", properties)
-    print(properties.get("format"))
-    if properties.get("format") == "binary":
-        # strategy = binary_image_schema
-        strategy = st.just(generate_random_image("/home/cheesedz/vas/server/public/images-catalog"))
+    # print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: properties in object_schema -> ", properties)
     patterns = schema.get("patternProperties", {})  # regex for names: value schema
     # schema for other values; handled specially if nothing matches
     additional = schema.get("additionalProperties", {})
@@ -761,7 +748,7 @@ def object_schema(
     )
     all_names_strategy = st.one_of([s for s in name_strats if not s.is_empty])
 
-    @st.composite  # type: ignore
+    @st.composite  
     def from_object_schema(draw: st.DrawFn) -> Any:
         """Do some black magic with private Hypothesis internals for objects.
 
