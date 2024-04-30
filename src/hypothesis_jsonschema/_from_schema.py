@@ -1,6 +1,7 @@
 """A Hypothesis extension for JSON schemata."""
 
 import base64
+from email.mime import image
 import itertools
 import math
 import operator
@@ -199,19 +200,24 @@ def __from_schema(
 ) -> st.SearchStrategy[JSONType]:
     try:
         schema = resolve_all_refs(schema)
-        # if "properties" in schema:
-        #     for field_name, field_data in schema["properties"].items():
-        #         if "format" in field_data and field_data["format"] == "binary":
-        #             field_data["meta-data"] = {
-        #                 "imageName": {
-        #                     "type": "string",
-        #                     "default": "console.png"
-        #                 },
-        #                 "size": {
-        #                     "type": "string",
-        #                     "default": ""
-        #                 }
-        #             }
+        image_directory = "/home/cheesedz/vas/server/public/images-catalog"
+        image_extensions = (".jpeg", ".jpg", ".png", ".bmp", ".gif")
+        image_paths = [os.path.join(image_directory, f) for f in os.listdir(image_directory) if f.lower().endswith(image_extensions)]
+        if "properties" in schema:
+            for field_name, field_data in schema["properties"].items():
+                if "format" in field_data and field_data["format"] == "binary":
+                    field_data["meta-data"] = {
+                        "imageName": {
+                            "type": "string",
+                            "default": "console.png"
+                        },
+                        "size": {
+                            "type": "string",
+                            "default": "5MB"
+                        }
+                    }
+                    random.seed(time.time())
+                    field_data["index"] = random.randint(0, len(image_paths))
 
     except RecursionError:
         raise HypothesisRefResolutionError(
@@ -311,15 +317,23 @@ def __from_schema(
     assert set(map_) == set(TYPE_STRINGS)
     return st.one_of([map_[t](schema) for t in get_type(schema)])
 
+# def get_image_paths():
+#     image_directory = "public/images-catalog"
+#     image_extensions = (".jpeg", ".jpg", ".png", ".bmp", ".gif")
+#     image_paths = [os.path.join(image_directory, f) 
+#                    for f in os.listdir(image_directory) if f.lower().endswith(image_extensions)]
+#     return image_paths
 
 def generate_random_image(data_path) -> Image.Image:
     """Choose a random image in image dataset"""
+    image_extensions = (".jpeg", ".jpg", ".png", ".bmp", ".gif")
     if not os.path.isdir(data_path):
         raise ValueError(f"Image data directory {data_path} does not exist.")
     image_files = []
     for root, _, files in os.walk(data_path):
         for f in files:
-            image_files.append(os.path.join(root, f))
+            if f.lower().endswith(image_extensions):
+                image_files.append(os.path.join(root, f))
     random.seed(time.time())
     num = random.randint(0, len(image_files))
     print(">>>>>>>>>>>>>>>Image number: ", image_files[num])
@@ -330,18 +344,26 @@ def generate_random_image(data_path) -> Image.Image:
 #     return st.just(encode_image("server/public/images-catalog"))
 
 def encode_image(data_path):
-  """Chooses a random image and encodes it to Base64 using Pillow.
+    """Chooses a random image and encodes it to Base64 using Pillow.
 
-  Args:
-      data_path (str): Path to the image dataset directory.
+    Args:
+        data_path (str): Path to the image dataset directory.
 
-  Returns:
-      str: Base64 encoded string representation of the randomly chosen image.
-  """
-  image_path = generate_random_image(data_path)  # Use your existing function
-  with Image.open(image_path) as image:
-    image_buffer = image.convert('RGB').tobytes()
-  return base64.b64encode(image_buffer)
+    Returns:
+        str: Base64 encoded string representation of the randomly chosen image.
+    """
+    image_path = generate_random_image(data_path)  # Use your existing function
+    with Image.open(image_path) as image:
+        image_buffer = image.convert('RGB').tobytes()
+    return base64.b64encode(image_buffer)
+
+def extract_image_name(path):
+    last_slash_index = path.rfind("/")
+
+    if last_slash_index != -1:
+        return path[last_slash_index + 1:]
+    else:
+        return path
 
 def _numeric_with_multiplier(
     min_value: Optional[float], max_value: Optional[float], schema: Schema
@@ -538,6 +560,16 @@ def _warn_invalid_regex(pattern: str, err: re.error, kw: str = "pattern") -> Non
         stacklevel=2,
     )
 
+# def custom_image_strategy() -> Any:
+#     image_path = generate_random_image("public/images-catalog")
+#     image_size = Image.open(image_path).size
+#     image_type = Image.open(image_path).format
+#     return {
+#         "imageName": st.just(extract_image_name(image_path)),
+#         "type": st.just(image_type),
+#         "size": st.just(image_size)
+#     }
+
 
 def string_schema(
     custom_formats: Dict[str, st.SearchStrategy[str]],
@@ -582,11 +614,24 @@ def string_schema(
     ):
         if schema.get("format") == "binary":
             # strategy = binary_image_schema
-            strategy = st.just(encode_image("public/images-catalog"))
+            strategy = st.just(extract_image_name(generate_random_image("/home/cheesedz/vas/server/public/images-catalog")))
+            # image_path = generate_random_image("public/images-catalog")
+            # image_size = Image.open(image_path).size
+            # strategy = st.just(
+            #     """
+            #     "image": {
+            #         'imageName': {image_path}
+            #         'size': {image_size}
+            #     } """
+            # )
+            # strategy = custom_image_strategy
+
+            # schema["meta-data"]["imageName"] = extract_image_name(image_path)
+            # schema["meta-data"]["size"] = Image.open(image_path).size
         else:
             max_size = math.inf if max_size is None else max_size
             strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
-    print("Choosen strategy is : ", strategy)
+    # print("Choosen strategy is : ", strategy)
     return strategy
 
 
@@ -709,6 +754,10 @@ def object_schema(
 
     properties = schema.get("properties", {})  # exact name: value schema
     print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: properties in object_schema -> ", properties)
+    print(properties.get("format"))
+    if properties.get("format") == "binary":
+        # strategy = binary_image_schema
+        strategy = st.just(generate_random_image("/home/cheesedz/vas/server/public/images-catalog"))
     patterns = schema.get("patternProperties", {})  # regex for names: value schema
     # schema for other values; handled specially if nothing matches
     additional = schema.get("additionalProperties", {})
