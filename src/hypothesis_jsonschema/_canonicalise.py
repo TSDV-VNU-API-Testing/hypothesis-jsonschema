@@ -249,7 +249,6 @@ def canonicalish(schema: JSONType) -> Dict[str, Any]:
     # Make a copy, so we don't mutate the existing schema in place.
     # Using the canonical encoding makes all integer-valued floats into ints.
     schema = json.loads(encode_canonical_json(schema))
-
     # Otherwise, we're dealing with "objects", i.e. dicts.
     if not isinstance(schema, dict):
         raise InvalidArgument(
@@ -477,6 +476,7 @@ def canonicalish(schema: JSONType) -> Dict[str, Any]:
         max_ = schema.get("maxProperties", float("inf"))
         assert isinstance(max_, (int, float))
         properties = schema.get("properties", {})
+        # print("properties", properties)
         propnames_validator = make_validator(schema.get("propertyNames", {})).is_valid
         if (
             len(schema["required"]) > max_
@@ -484,7 +484,7 @@ def canonicalish(schema: JSONType) -> Dict[str, Any]:
             or not all(propnames_validator(name) for name in schema["required"])
         ):
             type_.remove("object")
-
+        
     for t, kw in TYPE_SPECIFIC_KEYS:
         numeric = {"number", "integer"}
         if t in type_ or (t in numeric and numeric.intersection(type_)):

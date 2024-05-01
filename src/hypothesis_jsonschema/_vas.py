@@ -276,7 +276,7 @@ FAKER_BUILTIN_PROVIDER_METHODS = [
     "hostname",
     "http_method",
     "iana_id",
-    "image_url",
+    # "image_url",
     "ipv4",
     "ipv4_network_class",
     "ipv4_private",
@@ -322,7 +322,7 @@ FAKER_BUILTIN_PROVIDER_METHODS = [
     "csv",
     "dsv",
     "fixed_width",
-    "image",
+    # "image",
     "json",
     "json_bytes",
     "md5",
@@ -565,6 +565,7 @@ for _, method_name in enumerate(FAKER_ALL_PROVIDER_METHODS):
 
 
 def get_faker_strategy(key: str) -> st.SearchStrategy[Union[str, None]]:
+
     matched_method = None
 
     for _, method_name in enumerate(FAKER_ALL_PROVIDER_METHODS):

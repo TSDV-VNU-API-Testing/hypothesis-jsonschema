@@ -11,6 +11,7 @@ from fractions import Fraction
 from functools import partial
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Union
 import os
+import copy
 import base64
 import jsonschema
 import jsonschema.exceptions
@@ -153,6 +154,48 @@ def from_schema(
     recursive references.
     """
     try:
+        images_directory = '/home/thinh/vas/server/public/img'
+        image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
+        image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
+        # if 'required' in schema:
+        #     if 'avatar' in schema['required'] and 'size' not in schema['required']:
+        #         schema['required'].append('size')
+
+        if "properties" in schema:
+            if not isinstance(schema["properties"], dict):
+                schema["properties"] = {}
+
+            properties_copy = copy.deepcopy(schema["properties"]) # Fix lỗi changed size each iterator 
+            for field, details in properties_copy.items():
+                if "format" in details and details["format"] == "binary":
+                    random.seed(time.time())
+                    random_number = random.randint(0, len(image_paths) - 1)
+                    image_path = image_paths[random_number]
+                    # Inject path field into properties
+                    schema["properties"]["imageUrl"] = {
+                        "type": "string",
+                        "belong": field,
+                        "default": "public/img/" + os.path.basename(image_path)
+                    }
+                    # Inject imageName field into properties
+                    schema["properties"]["imageName"] = {
+                        "type": "string",
+                        "belong": field,
+                        "default": os.path.basename(image_path)
+                    }
+
+                    # Inject size field into properties
+                    file_size = os.path.getsize(image_path) / (1024 * 1024)  # Convert to MB
+                    formatted_file_size = f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
+
+                    # Inject size field into properties
+                    schema["properties"]["size"] = {
+                        "type": "string",
+                        "belong": field,
+                        "default": formatted_file_size
+                    }
+            print("Schema: ", schema)
+            
         return __from_schema(
             schema,
             custom_formats=custom_formats,
@@ -160,11 +203,12 @@ def from_schema(
         )
     except Exception as err:
         error = err
-
+        print("error:", error)
         def error_raiser() -> NoReturn:
             raise error
 
         return st.builds(error_raiser)
+
 
 
 def _get_format_filter(
@@ -195,39 +239,6 @@ def __from_schema(
 ) -> st.SearchStrategy[JSONType]:
     try:
         schema = resolve_all_refs(schema)
-        images_directory = 'public/img'
-        image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
-        image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
-
-        print("Schema: ", schema)
-        if "properties" in schema:
-            # Check if schema["properties"] is a dictionary
-            if not isinstance(schema["properties"], dict):
-                # If not, initialize it as an empty dictionary
-                schema["properties"] = {}
-
-            for field, details in schema["properties"].items():
-                if "format" in details:
-                    if details["format"] == "binary":
-                        # Generate a random number in range of image_path"s size
-                        random.seed(time.time())
-                        random_number = random.randint(0, len(image_paths) - 1)
-                        image_path = image_paths[random_number]
-                        # Inject imageName field into properties
-                        schema["properties"].setdefault("imageName", {
-                            "type": "string",
-                            "belong": field,
-                            "default": os.path.basename(image_path)
-                        })  
-
-                        # Inject size field into properties
-                        file_size = os.path.getsize(image_path)
-                        schema["properties"].setdefault("size", {
-                            "type": "string",
-                            "belong": field,
-                            "default": file_size
-                        })  
-        print("Schema: ", schema)
     except RecursionError:
         raise HypothesisRefResolutionError(
             f"Could not resolve recursive references in schema={schema!r}"
@@ -255,7 +266,8 @@ def __from_schema(
             name: _get_format_filter(name, format_checker, strategy)
             for name, strategy in custom_formats.items()
         }
-        custom_formats[_FORMATS_TOKEN] = None  
+        custom_formats[_FORMATS_TOKEN] = None 
+        
 
     schema = canonicalish(schema)
     # Boolean objects are special schemata; False rejects all and True accepts all.
@@ -747,7 +759,6 @@ def object_schema(
         ),
     )
     all_names_strategy = st.one_of([s for s in name_strats if not s.is_empty])
-
     @st.composite  
     def from_object_schema(draw: st.DrawFn) -> Any:
         """Do some black magic with private Hypothesis internals for objects.
@@ -786,6 +797,21 @@ def object_schema(
             ]
             if key in properties:
                 pattern_schemas.insert(0, properties[key])
+
+            ok = 0
+            imageName = ""
+            feature = ""
+            for key in properties:
+                if properties[key].get('format') == 'binary' and properties[key].get('type') == 'string':
+                    ok = 1
+                    feature = key
+                if ok == 1 and key == 'imageName':
+                    imageName = properties[key]['default'] 
+                    out[feature] = draw(get_binary(imageName))
+                    # out['size'] = draw(get_binary(imageName))
+                    # out['imageName'] = draw(get_binary(imageName))
+                    ok = 0
+                    break
 
             # if pattern_schemas:
             #     out[key] = draw(merged_as_strategies(pattern_schemas, custom_formats))
@@ -835,3 +861,11 @@ def object_schema(
         return out
 
     return from_object_schema()
+
+def get_binary(imageName: str) -> st.SearchStrategy[Union[str, None]]:
+    image_path = "/home/thinh/vas/server/public/img/" + imageName
+    image_data = ""
+    with open(image_path, 'rb') as image_file:
+        image_data = image_file.read()
+    return st.just("TEST")
+         
