@@ -157,9 +157,6 @@ def from_schema(
         images_directory = 'public/img'
         image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
         image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
-        # if 'required' in schema:
-        #     if 'avatar' in schema['required'] and 'size' not in schema['required']:
-        #         schema['required'].append('size')
 
         if "properties" in schema:
             if not isinstance(schema["properties"], dict):
@@ -172,13 +169,13 @@ def from_schema(
                     random_number = random.randint(0, len(image_paths) - 1)
                     image_path = image_paths[random_number]
                     # Inject path field into properties
-                    schema["properties"]["imageUrl"] = {
+                    schema["properties"]["vas_imageUrl"] = {
                         "type": "string",
                         "belong": field,
                         "default": "public/img/" + os.path.basename(image_path)
                     }
                     # Inject imageName field into properties
-                    schema["properties"]["imageName"] = {
+                    schema["properties"]["vas_imageName"] = {
                         "type": "string",
                         "belong": field,
                         "default": os.path.basename(image_path)
@@ -189,7 +186,7 @@ def from_schema(
                     formatted_file_size = f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
 
                     # Inject size field into properties
-                    schema["properties"]["size"] = {
+                    schema["properties"]["vas_size"] = {
                         "type": "string",
                         "belong": field,
                         "default": formatted_file_size
@@ -798,7 +795,7 @@ def object_schema(
             if key in properties:
                 pattern_schemas.insert(0, properties[key])
 
-            
+
 
             # if pattern_schemas:
             #     out[key] = draw(merged_as_strategies(pattern_schemas, custom_formats))
@@ -838,7 +835,6 @@ def object_schema(
                         additional, custom_formats=custom_formats, alphabet=alphabet
                     )
                 )
-
             for k, v in dep_schemas.items():
                 if k in out and not make_validator(v).is_valid(out):
                     out.pop(key)
@@ -854,7 +850,7 @@ def object_schema(
                     feature = key
             for key in properties:
                 if ok == 1 and key == 'imageName':
-                    imageName = properties[key]['default'] 
+                    imageName = properties[key]['default']
                     out[feature] = draw(get_binary(imageName))
                     out['size'] = draw(get_binary(imageName))
                     out['imageName'] = draw(get_binary(imageName))
@@ -867,9 +863,21 @@ def object_schema(
     return from_object_schema()
 
 def get_binary(imageName: str) -> st.SearchStrategy[Union[str, None]]:
-    # image_path = "public/img/" + imageName
-    # image_data = ""
-    # with open(image_path, 'rb') as image_file:
-    #     image_data = image_file.read()
-    return st.just("TEST")
-         
+    image_path = "public/img/" + imageName
+    image_data = ""
+    with open(image_path, 'rb') as image_file:
+        image_data = image_file.read()
+    return st.just('AVATAR')
+
+def get_image_name(imageName: str) -> st.SearchStrategy[Union[str, None]]:
+    return st.just(imageName)
+
+def get_image_size(imageName: str) -> st.SearchStrategy[Union[str, None]]:
+    image_path = "public/img/" + imageName
+    file_size = os.path.getsize(image_path) / (1024 * 1024)  # Convert to MB
+    formatted_file_size = f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
+    return st.just(formatted_file_size)
+
+def get_image_url(imageName: str) -> st.SearchStrategy[Union[str, None]]:
+    image_path = "public/img/" + imageName
+    return st.just(image_path)
