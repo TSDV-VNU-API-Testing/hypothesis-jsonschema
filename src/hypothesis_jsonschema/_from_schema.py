@@ -154,7 +154,7 @@ def from_schema(
     recursive references.
     """
     try:
-        images_directory = '/home/thinh/vas/server/public/img'
+        images_directory = 'public/img'
         image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
         image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
         # if 'required' in schema:
@@ -798,20 +798,7 @@ def object_schema(
             if key in properties:
                 pattern_schemas.insert(0, properties[key])
 
-            ok = 0
-            imageName = ""
-            feature = ""
-            for key in properties:
-                if properties[key].get('format') == 'binary' and properties[key].get('type') == 'string':
-                    ok = 1
-                    feature = key
-                if ok == 1 and key == 'imageName':
-                    imageName = properties[key]['default'] 
-                    out[feature] = draw(get_binary(imageName))
-                    # out['size'] = draw(get_binary(imageName))
-                    # out['imageName'] = draw(get_binary(imageName))
-                    ok = 0
-                    break
+            
 
             # if pattern_schemas:
             #     out[key] = draw(merged_as_strategies(pattern_schemas, custom_formats))
@@ -851,10 +838,27 @@ def object_schema(
                         additional, custom_formats=custom_formats, alphabet=alphabet
                     )
                 )
+
             for k, v in dep_schemas.items():
                 if k in out and not make_validator(v).is_valid(out):
                     out.pop(key)
                     elements.reject()
+            ok = 0
+            imageName = ""
+            feature = ""
+            for key in properties:
+                # print("KEY: ", key)
+                # print("Properties[KEY] :", properties[key])
+                if properties[key].get('format') == 'binary' and properties[key].get('type') == 'string':
+                    ok = 1
+                    feature = key
+            for key in properties:
+                if ok == 1 and key == 'imageName':
+                    imageName = properties[key]['default'] 
+                    out[feature] = draw(get_binary(imageName))
+                    out['size'] = draw(get_binary(imageName))
+                    out['imageName'] = draw(get_binary(imageName))
+                    break
 
         for k in set(dep_names).intersection(out):
             assume(set(out).issuperset(dep_names[k]))
@@ -863,9 +867,9 @@ def object_schema(
     return from_object_schema()
 
 def get_binary(imageName: str) -> st.SearchStrategy[Union[str, None]]:
-    image_path = "/home/thinh/vas/server/public/img/" + imageName
-    image_data = ""
-    with open(image_path, 'rb') as image_file:
-        image_data = image_file.read()
+    # image_path = "public/img/" + imageName
+    # image_data = ""
+    # with open(image_path, 'rb') as image_file:
+    #     image_data = image_file.read()
     return st.just("TEST")
          
