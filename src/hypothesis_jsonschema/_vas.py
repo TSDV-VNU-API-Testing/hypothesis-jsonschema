@@ -96,7 +96,7 @@ FAKER_BUILTIN_PROVIDERS = [
     "currency",
     "date_time",
     "emoji",
-    "file",
+    # "file",
     "geo",
     "internet",
     "isbn",
@@ -316,8 +316,8 @@ FAKER_BUILTIN_PROVIDER_METHODS = [
     "words",
     # -------------
     # misc
-    "binary",
-    "boolean",
+    # "binary",
+    # "boolean",
     "boolean",
     "csv",
     "dsv",
