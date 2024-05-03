@@ -23,6 +23,7 @@ from hypothesis.internal.conjecture import utils as cu
 from hypothesis.strategies._internal.regex import regex_strategy
 from hypothesis.strategies._internal.strings import OneCharStringStrategy
 from PIL import Image, ExifTags  # Đảm bảo nhập cả ExifTags
+from server.src.utils.log import logger
 from hypothesis_jsonschema._vas import (
     ASCII_OPTION,
     CODEC_OPTION_MAP,
@@ -70,12 +71,12 @@ class CharStrategy(OneCharStringStrategy):
         # self.allow_x00 = allow_x00
         # self.codec = codec
 
-        # print(codec)
+        # logger.debug(codec)
         if codec not in VAS_CODEC:
-            # print("IN if")
+            # logger.debug("IN if")
             codec = VAS_CODEC[0]
         allow_x00 = False
-        # print(CODEC_OPTION_MAP[codec].values())
+        # logger.debug(CODEC_OPTION_MAP[codec].values())
         # self: CharStrategy = cls.from_characters_args(**CODEC_OPTION_MAP[codec])
         self: CharStrategy = cls.from_characters_args(
             **CODEC_OPTION_MAP["ascii_no_symbol_and_punctuation"]
@@ -162,7 +163,7 @@ def from_schema(
         )
     except Exception as err:
         error = err
-        print("error:", error)
+        logger.debug("error:", error)
         def error_raiser() -> NoReturn:
             raise error
 
@@ -235,7 +236,7 @@ def __from_schema(
                         "belong": field,
                         "enum": [formatted_file_size]
                     }
-            print("Schema: ", schema)
+            logger.debug("Schema: ", schema)
     except RecursionError:
         raise HypothesisRefResolutionError(
             f"Could not resolve recursive references in schema={schema!r}"
@@ -529,17 +530,6 @@ def _warn_invalid_regex(pattern: str, err: re.error, kw: str = "pattern") -> Non
         stacklevel=2,
     )
 
-# def custom_image_strategy() -> Any:
-#     image_path = generate_random_image("public/images-catalog")
-#     image_size = Image.open(image_path).size
-#     image_type = Image.open(image_path).format
-#     return {
-#         "imageName": st.just(extract_image_name(image_path)),
-#         "type": st.just(image_type),
-#         "size": st.just(image_size)
-#     }
-
-
 def string_schema(
     custom_formats: Dict[str, st.SearchStrategy[str]],
     alphabet: CharStrategy,
@@ -579,20 +569,6 @@ def string_schema(
     if ("format" in schema or "pattern" in schema) and (
         min_size != 0 or max_size is not None
     ):
-        # if schema.get("format") == "binary":
-        #     # strategy = binary_image_schema
-        #     images_directory = '../public/img'
-        #     image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
-        #     image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
-        #     random_number = int(schema['random_number'])
-        #     if random_number < len(image_paths):
-        #         image_path = image_paths[random_number]
-        #         # Đọc dữ liệu ảnh từ tệp và mã hóa bằng base64
-        #         with open(image_path, 'rb') as image_file:
-        #             image_data = base64.b64encode(image_file.read()).decode('utf-8')
-        #             image_object = image_path.split('/')
-        #             strategy = st.just(image_object[len(image_object) - 1])
-        # else:
             max_size = math.inf if max_size is None else max_size
             strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
     return strategy
@@ -716,7 +692,6 @@ def object_schema(
     names["type"] = "string"
 
     properties = schema.get("properties", {})  # exact name: value schema
-    # print("deps/hypothesis-jsonschema/src/hypothesis_jsonschema/_from_schema.py: properties in object_schema -> ", properties)
     patterns = schema.get("patternProperties", {})  # regex for names: value schema
     # schema for other values; handled specially if nothing matches
     additional = schema.get("additionalProperties", {})
@@ -786,6 +761,7 @@ def object_schema(
                         break
                 else:
                     key = draw(all_names_strategy.filter(lambda s: s not in out))
+
             pattern_schemas = [
                 patterns[rgx]
                 for rgx in sorted(patterns)
@@ -794,28 +770,6 @@ def object_schema(
             if key in properties:
                 # if key != "imageName" or key != "size": 
                 pattern_schemas.insert(0, properties[key])
-            # ok = 0
-            # imageName = ""
-            # feature = ""
-            # for key in properties:
-            #     if properties[key].get('format') == 'binary' and properties[key].get('type') == 'string':
-            #         ok = 1
-            #         feature = key
-            #     if ok == 1 and key == 'imageName':
-            #         imageName = properties[key]['default'] 
-            #         out[feature] = draw(get_binary(imageName))
-            #         
-            #         ok = 0
-            #         break
-
-            # if pattern_schemas:
-            #     out[key] = draw(merged_as_strategies(pattern_schemas, custom_formats))
-            # else:
-            #     out[key] = draw(
-            #         __from_schema(
-            #             additional, custom_formats=custom_formats, alphabet=alphabet
-            #         )
-            #     )
 
             if pattern_schemas:
                 key_schema = pattern_schemas[0]
@@ -832,7 +786,7 @@ def object_schema(
                       out['vas_imageUrl'] = draw(get_image_url(imageName))
                       out['vas_name'] = draw(get_image_name(imageName))
                     else:
-                        print("Error: imageName is not available or 'enum' is empty")
+                        logger.debug("Error: imageName is not available or 'enum' is empty")
 
                 # Sẽ áp dụng faker cho những trường hợp sau:
                 # 1. "type": "string", không có format
@@ -845,7 +799,6 @@ def object_schema(
                 ):
                     out[key] = draw(get_faker_strategy(key))
 
-                #
                 elif type_of_key_schema != "string" or out[key] == None:
                     out[key] = draw(
                         merged_as_strategies(pattern_schemas, custom_formats)
