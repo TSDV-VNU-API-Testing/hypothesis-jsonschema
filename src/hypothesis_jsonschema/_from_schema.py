@@ -23,7 +23,7 @@ from hypothesis.internal.conjecture import utils as cu
 from hypothesis.strategies._internal.regex import regex_strategy
 from hypothesis.strategies._internal.strings import OneCharStringStrategy
 from PIL import Image, ExifTags  # Đảm bảo nhập cả ExifTags
-from server.src.utils.log import logger
+from ._vas import logger
 from hypothesis_jsonschema._vas import (
     ASCII_OPTION,
     CODEC_OPTION_MAP,
@@ -76,7 +76,7 @@ class CharStrategy(OneCharStringStrategy):
             # logger.debug("IN if")
             codec = VAS_CODEC[0]
         allow_x00 = False
-        # logger.debug(CODEC_OPTION_MAP[codec].values())
+        # logger.info(CODEC_OPTION_MAP[codec].values())
         # self: CharStrategy = cls.from_characters_args(**CODEC_OPTION_MAP[codec])
         self: CharStrategy = cls.from_characters_args(
             **CODEC_OPTION_MAP["ascii_no_symbol_and_punctuation"]
@@ -163,7 +163,7 @@ def from_schema(
         )
     except Exception as err:
         error = err
-        logger.debug("error:", error)
+        logger.info("error:", error)
         def error_raiser() -> NoReturn:
             raise error
 
@@ -236,7 +236,7 @@ def __from_schema(
                         "belong": field,
                         "enum": [formatted_file_size]
                     }
-            logger.debug("Schema: ", schema)
+            logger.info("Schema: %s", schema)
     except RecursionError:
         raise HypothesisRefResolutionError(
             f"Could not resolve recursive references in schema={schema!r}"
@@ -785,8 +785,6 @@ def object_schema(
                       out['vas_size'] = draw(get_image_size(imageName))
                       out['vas_imageUrl'] = draw(get_image_url(imageName))
                       out['vas_name'] = draw(get_image_name(imageName))
-                    else:
-                        logger.debug("Error: imageName is not available or 'enum' is empty")
 
                 # Sẽ áp dụng faker cho những trường hợp sau:
                 # 1. "type": "string", không có format

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import logging
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from importlib import import_module
@@ -29,6 +30,33 @@ from hypothesis import strategies as st
 # exclude_characters=None,
 # include_characters=None,
 # }
+
+CURRENT_LEVEL = logging.DEBUG
+CURRENT_FORMAT = (
+    "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s %(levelname)s:%(message)s"
+)
+CURRENT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+logging.basicConfig(
+    level=CURRENT_LEVEL,
+    format=CURRENT_FORMAT,
+    datefmt=CURRENT_DATE_FORMAT,
+    # filename=get_abs_path("public/log/run.log"),
+)
+
+logger = logging.getLogger(name="Logger")
+logger.setLevel(level=CURRENT_LEVEL)
+
+for handler in logger.handlers:
+    logger.removeHandler(handler)
+
+console_handle = logging.StreamHandler()
+console_handle.setLevel(level=CURRENT_LEVEL)
+
+formatter = logging.Formatter(CURRENT_FORMAT)
+console_handle.setFormatter(formatter)
+
+logger.addHandler(console_handle)
 
 ASCII_OPTION = {
     "min_codepoint": ord("\u0020"),  # 0 ~ Space
