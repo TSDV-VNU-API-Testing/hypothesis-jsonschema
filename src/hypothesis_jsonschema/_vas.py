@@ -763,8 +763,8 @@ class VasImage:
         )
         return formatted_file_size
 
-    def _get_image_binary(self) -> str:
-        image_binary: str = random.choice(ascii_letters)
-        return image_binary
+    def _get_image_binary(self) -> str | bytes:
+        # image_binary: str = random.choice(ascii_letters)
+        # return image_binary
         with open(self.image_path, "rb") as image_file:
-            image_binary = image_file.read()
+            return image_file.read()
