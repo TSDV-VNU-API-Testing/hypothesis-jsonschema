@@ -33,7 +33,7 @@ def get_key_with_vas_prefix(key_name: str):
     return f"{VAS_KEY_PREFIX}_{key_name}"
 
 
-CURRENT_LEVEL = logging.DEBUG
+CURRENT_LEVEL = logging.INFO
 CURRENT_FORMAT = (
     "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s %(levelname)s:%(message)s"
 )
