@@ -12,6 +12,7 @@ one way to generate any given value... but much more importantly, we can do
 most things by construction instead of by filtering.  That's the difference
 between "I'd like it to be faster" and "doesn't finish at all".
 """
+
 import contextlib
 import itertools
 import json
@@ -476,7 +477,6 @@ def canonicalish(schema: JSONType) -> Dict[str, Any]:
         max_ = schema.get("maxProperties", float("inf"))
         assert isinstance(max_, (int, float))
         properties = schema.get("properties", {})
-        # print("properties", properties)
         propnames_validator = make_validator(schema.get("propertyNames", {})).is_valid
         if (
             len(schema["required"]) > max_
@@ -484,7 +484,7 @@ def canonicalish(schema: JSONType) -> Dict[str, Any]:
             or not all(propnames_validator(name) for name in schema["required"])
         ):
             type_.remove("object")
-        
+
     for t, kw in TYPE_SPECIFIC_KEYS:
         numeric = {"number", "integer"}
         if t in type_ or (t in numeric and numeric.intersection(type_)):

@@ -2,9 +2,14 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
+import random
+import sys
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from importlib import import_module
+from string import ascii_letters
+from time import time as current_time
 from typing import (
     Any,
     Callable,
@@ -21,15 +26,12 @@ from uuid import UUID
 from faker import Faker
 from hypothesis import strategies as st
 
-# Full option
-# {
-# codec=None,
-# min_codepoint=None,
-# max_codepoint=None,
-# categories=None,
-# exclude_characters=None,
-# include_characters=None,
-# }
+VAS_KEY_PREFIX = "ZTc3N2RlYmUtMWJmMC00NjNjLTkzYjYtOWNmN2IxOGQ0ODkzCg=="
+
+
+def get_key_with_vas_prefix(key_name: str):
+    return f"{VAS_KEY_PREFIX}_{key_name}"
+
 
 CURRENT_LEVEL = logging.DEBUG
 CURRENT_FORMAT = (
@@ -37,26 +39,37 @@ CURRENT_FORMAT = (
 )
 CURRENT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
+
 logging.basicConfig(
     level=CURRENT_LEVEL,
     format=CURRENT_FORMAT,
     datefmt=CURRENT_DATE_FORMAT,
+    stream=sys.stdout,
     # filename=get_abs_path("public/log/run.log"),
 )
-
 logger = logging.getLogger(name="Logger")
 logger.setLevel(level=CURRENT_LEVEL)
 
-for handler in logger.handlers:
-    logger.removeHandler(handler)
+# for handler in logger.handlers:
+#     logger.removeHandler(handler)
 
-console_handle = logging.StreamHandler()
-console_handle.setLevel(level=CURRENT_LEVEL)
+# console_handle = logging.StreamHandler(sys.stdout)
+# console_handle.setLevel(level=CURRENT_LEVEL)
+# formatter = logging.Formatter(CURRENT_FORMAT)
+# console_handle.setFormatter(formatter)
 
-formatter = logging.Formatter(CURRENT_FORMAT)
-console_handle.setFormatter(formatter)
+# logger.addHandler(console_handle)
 
-logger.addHandler(console_handle)
+
+# Full option
+# {
+#   codec=None,
+#   min_codepoint=None,
+#   max_codepoint=None,
+#   categories=None,
+#   exclude_characters=None,
+#   include_characters=None,
+# }
 
 ASCII_OPTION = {
     "min_codepoint": ord("\u0020"),  # 0 ~ Space
@@ -588,7 +601,6 @@ for _, provider_name in enumerate(FAKER_COMMUNITY_PROVIDERS):
 # Check all method is callable
 for _, method_name in enumerate(FAKER_ALL_PROVIDER_METHODS):
     method = FAKER.__getattr__(method_name)
-    # print(f"{method_name} is callable: {isinstance(method, Callable)}")
     assert isinstance(method, Callable)
 
 
@@ -639,7 +651,8 @@ def get_faker_strategy(key: str) -> st.SearchStrategy[Union[str, None]]:
 
     method = FAKER.__getattr__(matched_method)
     assert isinstance(method, Callable)
-    return st.just(serialize(method()))
+    return st.builds(lambda: serialize(method()))
+    # return st.just(serialize(method()))
 
 
 def is_key_match_method_name(key: str, method_name: str) -> bool:
@@ -714,3 +727,44 @@ def is_key_match_method_name(key: str, method_name: str) -> bool:
             get_variant_keys(),
         )
     )
+
+
+VAS_IMAGE_FOLDER = "./public/img"
+VAS_IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".bmp")
+VAS_IMAGE_PATHS = [
+    os.path.join(VAS_IMAGE_FOLDER, file)
+    for file in os.listdir(VAS_IMAGE_FOLDER)
+    if os.path.isfile(os.path.join(VAS_IMAGE_FOLDER, file))
+    if file.lower().endswith(VAS_IMAGE_EXTENSIONS)
+]
+
+
+class VasImage:
+
+    # The purpose of "_: int" is for st.builds()
+    def __init__(self, _: int):
+        self.image_path = self._get_image_path()
+        self.image_name = self._get_image_name()
+        self.image_size = self._get_image_size()
+        self.image_binary = self._get_image_binary()
+
+    def _get_image_path(self) -> str:
+        random.seed(current_time())
+        ran_num = random.randint(0, len(VAS_IMAGE_PATHS) - 1)
+        return VAS_IMAGE_PATHS[ran_num]
+
+    def _get_image_name(self) -> str:
+        return os.path.basename(self.image_path)
+
+    def _get_image_size(self) -> str:
+        file_size = os.path.getsize(self.image_path) / (1024 * 1024)  # Convert to MB
+        formatted_file_size = (
+            f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
+        )
+        return formatted_file_size
+
+    def _get_image_binary(self) -> str:
+        image_binary: str = random.choice(ascii_letters)
+        return image_binary
+        with open(self.image_path, "rb") as image_file:
+            image_binary = image_file.read()

@@ -3,16 +3,13 @@
 import itertools
 import math
 import operator
-import random
-import time
 import re
+import time
 import warnings
 from fractions import Fraction
 from functools import partial
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Union
-import os
-import copy
-import base64
+
 import jsonschema
 import jsonschema.exceptions
 from hypothesis import assume
@@ -22,13 +19,13 @@ from hypothesis.errors import HypothesisWarning, InvalidArgument
 from hypothesis.internal.conjecture import utils as cu
 from hypothesis.strategies._internal.regex import regex_strategy
 from hypothesis.strategies._internal.strings import OneCharStringStrategy
-from PIL import Image, ExifTags  # Đảm bảo nhập cả ExifTags
-from ._vas import logger
 from hypothesis_jsonschema._vas import (
-    ASCII_OPTION,
     CODEC_OPTION_MAP,
     VAS_CODEC,
+    VasImage,
     get_faker_strategy,
+    get_key_with_vas_prefix,
+    logger,
 )
 
 from ._canonicalise import (
@@ -76,7 +73,7 @@ class CharStrategy(OneCharStringStrategy):
             # logger.debug("IN if")
             codec = VAS_CODEC[0]
         allow_x00 = False
-        # logger.info(CODEC_OPTION_MAP[codec].values())
+        # logger.debug(CODEC_OPTION_MAP[codec].values())
         # self: CharStrategy = cls.from_characters_args(**CODEC_OPTION_MAP[codec])
         self: CharStrategy = cls.from_characters_args(
             **CODEC_OPTION_MAP["ascii_no_symbol_and_punctuation"]
@@ -154,8 +151,57 @@ def from_schema(
     Supports JSONSchema drafts 04, 06, and 07, with the exception of
     recursive references.
     """
+
+    # if (not isinstance(schema, bool)) and "properties" in schema:
+    #     images_directory = "./public/img"
+    #     image_extensions = (".jpg", ".jpeg", ".png", ".bmp")
+    #     image_paths = [
+    #         os.path.join(images_directory, f)
+    #         for f in os.listdir(images_directory)
+    #         if f.lower().endswith(image_extensions)
+    #     ]
+
+    #     if not isinstance(schema["properties"], dict):
+    #         schema["properties"] = {}
+
+    #     properties_copy = copy.deepcopy(
+    #         schema["properties"]
+    #     )  # Fix lỗi changed size each iterator
+    #     for field, details in properties_copy.items():
+    #         if "format" in details and details["format"] == "binary":
+    #             random.seed(time.time())
+    #             random_number = random.randint(0, len(image_paths) - 1)
+    #             image_path = image_paths[random_number]
+
+    #             # Inject path field into properties
+    #             schema["properties"][get_key_with_vas_prefix("image_url")] = {
+    #                 "type": "string",
+    #                 "x-belong": field,
+    #                 "enum": ["public/img/" + os.path.basename(image_path)],
+    #             }
+    #             # Inject imageName field into properties
+    #             schema["properties"][get_key_with_vas_prefix("image_name")] = {
+    #                 "type": "string",
+    #                 "x-belong": field,
+    #                 "enum": [os.path.basename(image_path)],
+    #             }
+
+    #             # Inject size field into properties
+    #             file_size = os.path.getsize(image_path) / (1024 * 1024)  # Convert to MB
+    #             formatted_file_size = (
+    #                 f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
+    #             )
+
+    #             # Inject size field into properties
+    #             schema["properties"][get_key_with_vas_prefix("image_size")] = {
+    #                 "type": "string",
+    #                 "x-belong": field,
+    #                 "enum": [formatted_file_size],
+    #             }
+    # logger.debug("Schema: %s", schema)
+
     try:
-            
+
         return __from_schema(
             schema,
             custom_formats=custom_formats,
@@ -163,12 +209,12 @@ def from_schema(
         )
     except Exception as err:
         error = err
-        logger.info("error:", error)
+        logger.debug("error:", error)
+
         def error_raiser() -> NoReturn:
             raise error
 
         return st.builds(error_raiser)
-
 
 
 def _get_format_filter(
@@ -199,44 +245,6 @@ def __from_schema(
 ) -> st.SearchStrategy[JSONType]:
     try:
         schema = resolve_all_refs(schema)
-        images_directory = './public/img'
-        image_extensions = ('.jpg', '.jpeg', '.png', '.bmp', '.gif')
-        image_paths = [os.path.join(images_directory, f) for f in os.listdir(images_directory) if f.lower().endswith(image_extensions)]
-
-        if "properties" in schema:
-            if not isinstance(schema["properties"], dict):
-                schema["properties"] = {}
-
-            properties_copy = copy.deepcopy(schema["properties"]) # Fix lỗi changed size each iterator 
-            for field, details in properties_copy.items():
-                if "format" in details and details["format"] == "binary":
-                    random.seed(time.time())
-                    random_number = random.randint(0, len(image_paths) - 1)
-                    image_path = image_paths[random_number]
-                    # Inject path field into properties
-                    schema["properties"]["vas_imageUrl"] = {
-                        "type": "string",
-                        "belong": field,
-                        "enum": ["public/img/" + os.path.basename(image_path)]
-                    }
-                    # Inject imageName field into properties
-                    schema["properties"]["vas_imageName"] = {
-                        "type": "string",
-                        "belong": field,
-                        "enum": [os.path.basename(image_path)]
-                    }
-
-                    # Inject size field into properties
-                    file_size = os.path.getsize(image_path) / (1024 * 1024)  # Convert to MB
-                    formatted_file_size = f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
-
-                    # Inject size field into properties
-                    schema["properties"]["vas_size"] = {
-                        "type": "string",
-                        "belong": field,
-                        "enum": [formatted_file_size]
-                    }
-            logger.info("Schema: %s", schema)
     except RecursionError:
         raise HypothesisRefResolutionError(
             f"Could not resolve recursive references in schema={schema!r}"
@@ -264,8 +272,7 @@ def __from_schema(
             name: _get_format_filter(name, format_checker, strategy)
             for name, strategy in custom_formats.items()
         }
-        custom_formats[_FORMATS_TOKEN] = None 
-        
+        custom_formats[_FORMATS_TOKEN] = None
 
     schema = canonicalish(schema)
     # Boolean objects are special schemata; False rejects all and True accepts all.
@@ -330,12 +337,14 @@ def __from_schema(
     assert set(map_) == set(TYPE_STRINGS)
     return st.one_of([map_[t](schema) for t in get_type(schema)])
 
+
 # def get_image_paths():
 #     image_directory = "public/images-catalog"
 #     image_extensions = (".jpeg", ".jpg", ".png", ".bmp", ".gif")
-#     image_paths = [os.path.join(image_directory, f) 
+#     image_paths = [os.path.join(image_directory, f)
 #                    for f in os.listdir(image_directory) if f.lower().endswith(image_extensions)]
 #     return image_paths
+
 
 def _numeric_with_multiplier(
     min_value: Optional[float], max_value: Optional[float], schema: Schema
@@ -347,7 +356,7 @@ def _numeric_with_multiplier(
         min_value = math.ceil(Fraction(min_value) / Fraction(multiple_of))
     if max_value is not None:
         max_value = math.floor(Fraction(max_value) / Fraction(multiple_of))
-    if min_value is not None and max_value is not None and min_value > max_value:  
+    if min_value is not None and max_value is not None and min_value > max_value:
         # You would think that this is impossible, but it can happen if multipleOf
         # is very small and the bounds are very close togther.  It would be nicer
         # to deal with this when canonicalising, but suffice to say we can't without
@@ -425,7 +434,7 @@ def rfc3339(name: str) -> st.SearchStrategy[str]:
     return st.tuples(rfc3339("full-date"), rfc3339("full-time")).map("T".join)
 
 
-@st.composite  
+@st.composite
 def regex_patterns(draw: Any) -> str:
     """Return a recursive strategy for simple regular expression patterns."""
     fragments = st.one_of(
@@ -530,6 +539,7 @@ def _warn_invalid_regex(pattern: str, err: re.error, kw: str = "pattern") -> Non
         stacklevel=2,
     )
 
+
 def string_schema(
     custom_formats: Dict[str, st.SearchStrategy[str]],
     alphabet: CharStrategy,
@@ -569,8 +579,8 @@ def string_schema(
     if ("format" in schema or "pattern" in schema) and (
         min_size != 0 or max_size is not None
     ):
-            max_size = math.inf if max_size is None else max_size
-            strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
+        max_size = math.inf if max_size is None else max_size
+        strategy = strategy.filter(lambda s: min_size <= len(s) <= max_size)
     return strategy
 
 
@@ -617,7 +627,7 @@ def array_schema(
 
         if unique:
 
-            @st.composite  
+            @st.composite
             def compose_lists_with_filter(draw: Any) -> List[JSONType]:
                 elems = []
                 seen: Set[str] = set()
@@ -719,9 +729,11 @@ def object_schema(
         alphabet.check_name_allowed(name)
     known_optional_names: List[str] = sorted(known - set(required))
     name_strats = (
-        __from_schema(names, custom_formats=custom_formats, alphabet=alphabet)
-        if additional_allowed
-        else st.nothing(),
+        (
+            __from_schema(names, custom_formats=custom_formats, alphabet=alphabet)
+            if additional_allowed
+            else st.nothing()
+        ),
         st.sampled_from(known_optional_names) if known_optional_names else st.nothing(),
         st.one_of(
             [
@@ -731,7 +743,8 @@ def object_schema(
         ),
     )
     all_names_strategy = st.one_of([s for s in name_strats if not s.is_empty])
-    @st.composite  
+
+    @st.composite
     def from_object_schema(draw: st.DrawFn) -> Any:
         """Do some black magic with private Hypothesis internals for objects.
 
@@ -768,7 +781,6 @@ def object_schema(
                 if re.search(rgx, string=key) is not None
             ]
             if key in properties:
-                # if key != "imageName" or key != "size": 
                 pattern_schemas.insert(0, properties[key])
 
             if pattern_schemas:
@@ -777,27 +789,40 @@ def object_schema(
                 format_of_key_schema = key_schema.get("format", None)
                 pattern_of_key_schema = key_schema.get("pattern", None)
                 known_string_formats = {**STRING_FORMATS, **(custom_formats or {})}
+
                 # For binary data
-                if type_of_key_schema == "string" and format_of_key_schema == "binary":
-                    imageName = properties["vas_imageName"]['const']
-                    if imageName:
-                      out[key] = draw(get_binary(imageName))
-                      out['vas_size'] = draw(get_image_size(imageName))
-                      out['vas_imageUrl'] = draw(get_image_url(imageName))
-                      out['vas_name'] = draw(get_image_name(imageName))
+                if type_of_key_schema == "string":
+                    # Event we inject into schema using "enum" keyword, but in after canonicalise enum with 1 element is converted to const
+                    # See _canonicalise.py/canonicalish function for detail
+                    # image_name_properties = properties.get(
+                    #     get_key_with_vas_prefix("image_name"), None
+                    # )
 
-                # Sẽ áp dụng faker cho những trường hợp sau:
-                # 1. "type": "string", không có format
-                # 2. "type": "string", có format nhưng không nằm trong known_formats
-                # 3. "type": "string", không có pattern
-                # In support key list (see _vas.py)
-                elif (type_of_key_schema == "string") and (
-                    (format_of_key_schema not in known_string_formats)
-                    or (pattern_of_key_schema is None)
-                ):
-                    out[key] = draw(get_faker_strategy(key))
+                    if format_of_key_schema == "binary":
+                        vas_image = draw(st.builds(VasImage, st.integers()))
+                        out[key] = draw(st.just(vas_image.image_binary))
 
-                elif type_of_key_schema != "string" or out[key] == None:
+                        out[get_key_with_vas_prefix("image_name")] = draw(
+                            st.just(vas_image.image_name)
+                        )
+                        out[get_key_with_vas_prefix("image_size")] = draw(
+                            st.just(vas_image.image_size)
+                        )
+                        out[get_key_with_vas_prefix("image_url")] = draw(
+                            st.just(vas_image.image_path)
+                        )
+
+                    # Sẽ áp dụng faker cho những trường hợp sau
+                    #: 1. "type": "string" và không có pattern
+                    # 1. "type": "string", và không có pattern và không có format
+                    # 2. "type": "string", và không có pattern và có format nhưng không nằm trong known_format
+                    # In support key list (see _vas.py)
+                    elif (pattern_of_key_schema is None) and (
+                        format_of_key_schema not in known_string_formats
+                    ):
+                        out[key] = draw(get_faker_strategy(key))
+
+                if type_of_key_schema != "string" or out.get(key, None) == None:
                     out[key] = draw(
                         merged_as_strategies(pattern_schemas, custom_formats)
                     )
@@ -809,7 +834,6 @@ def object_schema(
                     )
                 )
 
-                    
             for k, v in dep_schemas.items():
                 if k in out and not make_validator(v).is_valid(out):
                     out.pop(key)
@@ -820,24 +844,3 @@ def object_schema(
         return out
 
     return from_object_schema()
-
-def get_binary(imageName: str) -> st.SearchStrategy[Union[str, None]]:
-    image_path = "./public/img/" + imageName
-    image_data = ""
-    with open(image_path, 'rb') as image_file:
-        image_data = image_file.read()
-    return st.just('AVATAR TEST')
-
-def get_image_name(imageName: str) -> st.SearchStrategy[Union[str, None]]:
-    return st.just(imageName)
-
-def get_image_size(imageName: str) -> st.SearchStrategy[Union[str, None]]:
-    image_path = "./public/img/" + imageName
-    file_size = os.path.getsize(image_path) / (1024 * 1024)  # Convert to MB
-    formatted_file_size = f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
-    return st.just(formatted_file_size)
-
-def get_image_url(imageName: str) -> st.SearchStrategy[Union[str, None]]:
-    image_path = "./public/img/" + imageName
-    return st.just(image_path)
-         
