@@ -33,7 +33,9 @@ def get_key_with_vas_prefix(key_name: str):
     return f"{VAS_KEY_PREFIX}_{key_name}"
 
 
-CURRENT_LEVEL = logging.DEBUG
+DEV = False
+
+CURRENT_LEVEL = logging.DEBUG if DEV else logging.INFO
 CURRENT_FORMAT = (
     "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s %(levelname)s:%(message)s"
 )
@@ -771,9 +773,8 @@ class VasImage:
 
     def _get_image_binary(self) -> str | bytes:
         with open(self.image_path, "rb") as image_file:
-            # return image_file.read()
-
-            return "AVATAR".encode("utf-8")
+            return "IMAGE".encode("utf-8")
+            # return "IMAGE".encode("utf-8") if DEV else image_file.read()
 
     def get_image_object(self) -> object:
         return {
