@@ -750,7 +750,7 @@ class VasImage:
 
     def _get_image_path(self) -> str:
         random.seed(current_time())
-        ran_num = random.randint(0, len(VAS_IMAGE_PATHS) - 1)
+        ran_num = random.randint(0, min(len(VAS_IMAGE_PATHS) - 1, 0))
         return VAS_IMAGE_PATHS[ran_num]
 
     def _get_image_name(self) -> str:
@@ -767,4 +767,5 @@ class VasImage:
         # image_binary: str = random.choice(ascii_letters)
         # return image_binary
         with open(self.image_path, "rb") as image_file:
-            return image_file.read()
+            # return image_file.read()
+            return "AVATAR".encode("utf-8")
