@@ -33,7 +33,7 @@ def get_key_with_vas_prefix(key_name: str):
     return f"{VAS_KEY_PREFIX}_{key_name}"
 
 
-CURRENT_LEVEL = logging.INFO
+CURRENT_LEVEL = logging.DEBUG
 CURRENT_FORMAT = (
     "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s %(levelname)s:%(message)s"
 )
@@ -50,15 +50,6 @@ logging.basicConfig(
 logger = logging.getLogger(name="Logger")
 logger.setLevel(level=CURRENT_LEVEL)
 
-# for handler in logger.handlers:
-#     logger.removeHandler(handler)
-
-# console_handle = logging.StreamHandler(sys.stdout)
-# console_handle.setLevel(level=CURRENT_LEVEL)
-# formatter = logging.Formatter(CURRENT_FORMAT)
-# console_handle.setFormatter(formatter)
-
-# logger.addHandler(console_handle)
 
 
 # Full option
@@ -738,13 +729,19 @@ VAS_IMAGE_PATHS = [
     if file.lower().endswith(VAS_IMAGE_EXTENSIONS)
 ]
 
+IMAGE_TYPE_STANDARD: dict[str, str] = {
+        "ico": "vnd.microsoft.icon",
+        "jpg": "jpeg",
+        "svg": "svg+xml",
+        "tif": "tiff"
+    }
 
 class VasImage:
-
     # The purpose of "_: int" is for st.builds()
     def __init__(self, _: int):
         self.image_path = self._get_image_path()
         self.image_name = self._get_image_name()
+        self.image_type = self._get_image_type()
         self.image_size = self._get_image_size()
         self.image_binary = self._get_image_binary()
 
@@ -755,6 +752,13 @@ class VasImage:
 
     def _get_image_name(self) -> str:
         return os.path.basename(self.image_path)
+    
+    def _get_image_type(self) -> str:
+        components = self.image_name.split(".")
+        content_type = components[len(components) - 1]
+        if content_type in IMAGE_TYPE_STANDARD:
+            return IMAGE_TYPE_STANDARD[content_type]
+        return content_type
 
     def _get_image_size(self) -> str:
         file_size = os.path.getsize(self.image_path) / (1024 * 1024)  # Convert to MB
@@ -764,7 +768,14 @@ class VasImage:
         return formatted_file_size
 
     def _get_image_binary(self) -> str | bytes:
-        # image_binary: str = random.choice(ascii_letters)
-        # return image_binary
         with open(self.image_path, "rb") as image_file:
-            return image_file.read()
+            # return image_file.read()
+            return "AVATAR"
+        
+    def _get_image_object(self) -> object:
+        return {
+            "imageName": self.image_name,
+            "imageType": self.image_type,
+            "imageSize": self.image_size,
+            "imageUrl": self.image_path
+        }

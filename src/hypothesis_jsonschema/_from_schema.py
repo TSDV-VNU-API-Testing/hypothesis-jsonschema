@@ -68,12 +68,9 @@ class CharStrategy(OneCharStringStrategy):
         # self.allow_x00 = allow_x00
         # self.codec = codec
 
-        # logger.debug(codec)
         if codec not in VAS_CODEC:
-            # logger.debug("IN if")
             codec = VAS_CODEC[0]
         allow_x00 = False
-        # logger.debug(CODEC_OPTION_MAP[codec].values())
         # self: CharStrategy = cls.from_characters_args(**CODEC_OPTION_MAP[codec])
         self: CharStrategy = cls.from_characters_args(
             **CODEC_OPTION_MAP["ascii_no_symbol_and_punctuation"]
@@ -198,7 +195,6 @@ def from_schema(
     #                 "x-belong": field,
     #                 "enum": [formatted_file_size],
     #             }
-    # logger.debug("Schema: %s", schema)
 
     try:
 
@@ -794,23 +790,16 @@ def object_schema(
                 if type_of_key_schema == "string":
                     # Event we inject into schema using "enum" keyword, but in after canonicalise enum with 1 element is converted to const
                     # See _canonicalise.py/canonicalish function for detail
-                    # image_name_properties = properties.get(
-                    #     get_key_with_vas_prefix("image_name"), None
-                    # )
 
                     if format_of_key_schema == "binary":
                         vas_image = draw(st.builds(VasImage, st.integers()))
                         out[key] = draw(st.just(vas_image.image_binary))
 
-                        out[get_key_with_vas_prefix("image_name")] = draw(
-                            st.just(vas_image.image_name)
-                        )
-                        out[get_key_with_vas_prefix("image_size")] = draw(
-                            st.just(vas_image.image_size)
-                        )
-                        out[get_key_with_vas_prefix("image_url")] = draw(
-                            st.just(vas_image.image_path)
-                        )
+                        # key_with_prefix = get_key_with_vas_prefix(key)
+                        # print(key_with_prefix)
+                        # out[key_with_prefix] = draw(
+                        #     st.just(vas_image._get_image_object())
+                        # )
 
                     # Sẽ áp dụng faker cho những trường hợp sau
                     #: 1. "type": "string" và không có pattern
