@@ -8,7 +8,6 @@ import sys
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from importlib import import_module
-from string import ascii_letters
 from time import time as current_time
 from typing import (
     Any,
@@ -47,7 +46,6 @@ logging.basicConfig(
     format=CURRENT_FORMAT,
     datefmt=CURRENT_DATE_FORMAT,
     stream=sys.stdout,
-    # filename=get_abs_path("public/log/run.log"),
 )
 logger = logging.getLogger(name="Logger")
 logger.setLevel(level=CURRENT_LEVEL)
@@ -456,14 +454,14 @@ FAKER_COMMUNITY_PROVIDERS = [
     "faker_biology.mol_biol.Enzyme",
     "faker_biology.taxonomy.ModelOrganism",
     "faker_credit_score.CreditScore",
-    "faker_education.SchoolProvider",
+    # "faker_education.SchoolProvider",
     "faker_marketdata.MarketDataProvider",
     "faker_microservice.Provider",
     "faker_music.MusicProvider",
     "mdgen.MarkdownPostProvider",
     "faker_vehicle.VehicleProvider",
     "faker_web.WebProvider",
-    "faker_wifi_essid.WifiESSID",
+    # "faker_wifi_essid.WifiESSID",
 ]
 FAKER_COMMUNITY_PROVIDER_METHODS = [
     # air travel
@@ -511,14 +509,14 @@ FAKER_COMMUNITY_PROVIDER_METHODS = [
     "credit_score_provider",
     "credit_score",
     "credit_score_full",
-    # education
-    "school_object",
-    "school_name",
-    "school_nces_id",
-    "school_district",
-    "school_level",
-    "school_type",
-    "school_state",
+    # # education
+    # "school_object",
+    # "school_name",
+    # "school_nces_id",
+    # "school_district",
+    # "school_level",
+    # "school_type",
+    # "school_state",
     # market data
     "isin",
     "sedol",
@@ -564,11 +562,11 @@ FAKER_COMMUNITY_PROVIDER_METHODS = [
     "nginx",
     "iis",
     "server_token",
-    # wifi essid
-    "common_essid",
-    "upc_default_essid",
-    "bbox_default_essid",
-    "wifi_essid",
+    # # wifi essid
+    # "common_essid",
+    # "upc_default_essid",
+    # "bbox_default_essid",
+    # "wifi_essid",
 ]
 FAKER_ALL_PROVIDER_METHODS = [
     *FAKER_BUILTIN_PROVIDER_METHODS,
