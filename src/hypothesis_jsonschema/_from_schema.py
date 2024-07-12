@@ -786,7 +786,7 @@ def object_schema(
                 pattern_of_key_schema = key_schema.get("pattern", None)
                 known_string_formats = {**STRING_FORMATS, **(custom_formats or {})}
 
-                # For binary data
+                # For "type: string" + "format: binary"
                 if type_of_key_schema == "string":
                     # Event we inject into schema using "enum" keyword, but in after canonicalise enum with 1 element is converted to const
                     # See _canonicalise.py/canonicalish function for detail
@@ -800,7 +800,7 @@ def object_schema(
                         key_with_prefix = get_key_with_vas_prefix(key)
                         print(key_with_prefix)
                         out[key_with_prefix] = draw(
-                            st.just(vas_image._get_image_object())
+                            st.just(vas_image.get_image_object())
                         )
 
                     # Sẽ áp dụng faker cho những trường hợp sau
@@ -811,9 +811,11 @@ def object_schema(
                     elif (pattern_of_key_schema is None) and (
                         format_of_key_schema not in known_string_formats
                     ):
+                        # If key not in faker database, out[key] = None
                         out[key] = draw(get_faker_strategy(key))
 
-                if type_of_key_schema != "string" or out.get(key, None) == None:
+                # For case that "type: string" hasn't have value yet or other "type"
+                if out.get(key, None) == None:
                     out[key] = draw(
                         merged_as_strategies(pattern_schemas, custom_formats)
                     )

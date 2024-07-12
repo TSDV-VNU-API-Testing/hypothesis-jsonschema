@@ -8,7 +8,6 @@ import sys
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from importlib import import_module
-from string import ascii_letters
 from time import time as current_time
 from typing import (
     Any,
@@ -33,7 +32,9 @@ def get_key_with_vas_prefix(key_name: str):
     return f"{VAS_KEY_PREFIX}_{key_name}"
 
 
-CURRENT_LEVEL = logging.DEBUG
+DEV = True
+
+CURRENT_LEVEL = logging.DEBUG if DEV else logging.INFO
 CURRENT_FORMAT = (
     "%(asctime)s %(filename)s:%(lineno)d:%(funcName)s %(levelname)s:%(message)s"
 )
@@ -45,11 +46,9 @@ logging.basicConfig(
     format=CURRENT_FORMAT,
     datefmt=CURRENT_DATE_FORMAT,
     stream=sys.stdout,
-    # filename=get_abs_path("public/log/run.log"),
 )
 logger = logging.getLogger(name="Logger")
 logger.setLevel(level=CURRENT_LEVEL)
-
 
 
 # Full option
@@ -455,14 +454,14 @@ FAKER_COMMUNITY_PROVIDERS = [
     "faker_biology.mol_biol.Enzyme",
     "faker_biology.taxonomy.ModelOrganism",
     "faker_credit_score.CreditScore",
-    "faker_education.SchoolProvider",
+    # "faker_education.SchoolProvider",
     "faker_marketdata.MarketDataProvider",
     "faker_microservice.Provider",
     "faker_music.MusicProvider",
     "mdgen.MarkdownPostProvider",
     "faker_vehicle.VehicleProvider",
     "faker_web.WebProvider",
-    "faker_wifi_essid.WifiESSID",
+    # "faker_wifi_essid.WifiESSID",
 ]
 FAKER_COMMUNITY_PROVIDER_METHODS = [
     # air travel
@@ -510,14 +509,14 @@ FAKER_COMMUNITY_PROVIDER_METHODS = [
     "credit_score_provider",
     "credit_score",
     "credit_score_full",
-    # education
-    "school_object",
-    "school_name",
-    "school_nces_id",
-    "school_district",
-    "school_level",
-    "school_type",
-    "school_state",
+    # # education
+    # "school_object",
+    # "school_name",
+    # "school_nces_id",
+    # "school_district",
+    # "school_level",
+    # "school_type",
+    # "school_state",
     # market data
     "isin",
     "sedol",
@@ -563,11 +562,11 @@ FAKER_COMMUNITY_PROVIDER_METHODS = [
     "nginx",
     "iis",
     "server_token",
-    # wifi essid
-    "common_essid",
-    "upc_default_essid",
-    "bbox_default_essid",
-    "wifi_essid",
+    # # wifi essid
+    # "common_essid",
+    # "upc_default_essid",
+    # "bbox_default_essid",
+    # "wifi_essid",
 ]
 FAKER_ALL_PROVIDER_METHODS = [
     *FAKER_BUILTIN_PROVIDER_METHODS,
@@ -731,11 +730,12 @@ VAS_IMAGE_PATHS = [
 
 #Image type standard mapping
 IMAGE_TYPE_STANDARD: dict[str, str] = {
-        "ico": "vnd.microsoft.icon",
-        "jpg": "jpeg",
-        "svg": "svg+xml",
-        "tif": "tiff"
+    "ico": "vnd.microsoft.icon",
+    "jpg": "jpeg",
+    "svg": "svg+xml",
+    "tif": "tiff",
 }
+
 
 class VasImage:
     # The purpose of "_: int" is for st.builds()
@@ -748,22 +748,22 @@ class VasImage:
 
     def _get_image_path(self) -> str:
         random.seed(current_time())
-        ran_num = random.randint(0, len(VAS_IMAGE_PATHS) - 1)
-        print("random number is called: ", ran_num)
-        print("image: ", VAS_IMAGE_PATHS[ran_num])
+        ran_num = random.randint(0, min(len(VAS_IMAGE_PATHS) - 1, 0))
         return VAS_IMAGE_PATHS[ran_num]
 
     def _get_image_name(self) -> str:
         logger.debug("image name is called")
         return os.path.basename(self.image_path)
-    
+
     def _get_image_type(self) -> str:
         logger.debug("image type is called")
         components = self.image_name.split(".")
         content_type = components[len(components) - 1]
+
         if content_type in IMAGE_TYPE_STANDARD:
-            return IMAGE_TYPE_STANDARD[content_type]
-        return content_type
+            return f"image/{IMAGE_TYPE_STANDARD[content_type]}"
+
+        return f"image/{content_type}"
 
     def _get_image_size(self) -> str:
         logger.debug("image size is called")
@@ -776,15 +776,13 @@ class VasImage:
     def _get_image_binary(self) -> str | bytes:
         logger.debug("image binary is called")
         with open(self.image_path, "rb") as image_file:
-            return image_file.read()
-            # return b"AVATAR"
-            
-    # Image metadata object
-    def _get_image_object(self) -> object:
-        logger.debug("image object is called")
+            return "IMAGE".encode("utf-8")
+            # return "IMAGE".encode("utf-8") if DEV else image_file.read()
+
+    def get_image_object(self) -> object:
         return {
-            "imageName": self.image_name,
-            "imageType": self.image_type,
-            "imageSize": self.image_size,
-            "imageUrl": self.image_path
+            "image_name": self.image_name,
+            "image_type": self.image_type,
+            "image_size": self.image_size,
+            "image_url": self.image_path,
         }
