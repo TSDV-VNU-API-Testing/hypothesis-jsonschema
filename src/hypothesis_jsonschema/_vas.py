@@ -729,12 +729,13 @@ VAS_IMAGE_PATHS = [
     if file.lower().endswith(VAS_IMAGE_EXTENSIONS)
 ]
 
+#Image type standard mapping
 IMAGE_TYPE_STANDARD: dict[str, str] = {
         "ico": "vnd.microsoft.icon",
         "jpg": "jpeg",
         "svg": "svg+xml",
         "tif": "tiff"
-    }
+}
 
 class VasImage:
     # The purpose of "_: int" is for st.builds()
@@ -748,12 +749,16 @@ class VasImage:
     def _get_image_path(self) -> str:
         random.seed(current_time())
         ran_num = random.randint(0, len(VAS_IMAGE_PATHS) - 1)
+        print("random number is called: ", ran_num)
+        print("image: ", VAS_IMAGE_PATHS[ran_num])
         return VAS_IMAGE_PATHS[ran_num]
 
     def _get_image_name(self) -> str:
+        logger.debug("image name is called")
         return os.path.basename(self.image_path)
     
     def _get_image_type(self) -> str:
+        logger.debug("image type is called")
         components = self.image_name.split(".")
         content_type = components[len(components) - 1]
         if content_type in IMAGE_TYPE_STANDARD:
@@ -761,6 +766,7 @@ class VasImage:
         return content_type
 
     def _get_image_size(self) -> str:
+        logger.debug("image size is called")
         file_size = os.path.getsize(self.image_path) / (1024 * 1024)  # Convert to MB
         formatted_file_size = (
             f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
@@ -768,11 +774,14 @@ class VasImage:
         return formatted_file_size
 
     def _get_image_binary(self) -> str | bytes:
+        logger.debug("image binary is called")
         with open(self.image_path, "rb") as image_file:
-            # return image_file.read()
-            return "AVATAR"
-        
+            return image_file.read()
+            # return b"AVATAR"
+            
+    # Image metadata object
     def _get_image_object(self) -> object:
+        logger.debug("image object is called")
         return {
             "imageName": self.image_name,
             "imageType": self.image_type,

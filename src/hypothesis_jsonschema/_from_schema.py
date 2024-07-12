@@ -790,16 +790,18 @@ def object_schema(
                 if type_of_key_schema == "string":
                     # Event we inject into schema using "enum" keyword, but in after canonicalise enum with 1 element is converted to const
                     # See _canonicalise.py/canonicalish function for detail
+                    logger.debug("type of key schema is string")
 
+                    # Catch and generate image data for binary data field
                     if format_of_key_schema == "binary":
                         vas_image = draw(st.builds(VasImage, st.integers()))
                         out[key] = draw(st.just(vas_image.image_binary))
 
-                        # key_with_prefix = get_key_with_vas_prefix(key)
-                        # print(key_with_prefix)
-                        # out[key_with_prefix] = draw(
-                        #     st.just(vas_image._get_image_object())
-                        # )
+                        key_with_prefix = get_key_with_vas_prefix(key)
+                        print(key_with_prefix)
+                        out[key_with_prefix] = draw(
+                            st.just(vas_image._get_image_object())
+                        )
 
                     # Sẽ áp dụng faker cho những trường hợp sau
                     #: 1. "type": "string" và không có pattern
