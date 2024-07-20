@@ -728,7 +728,7 @@ VAS_IMAGE_PATHS = [
     if file.lower().endswith(VAS_IMAGE_EXTENSIONS)
 ]
 
-#Image type standard mapping
+# Image type standard mapping
 IMAGE_TYPE_STANDARD: dict[str, str] = {
     "ico": "vnd.microsoft.icon",
     "jpg": "jpeg",
@@ -748,15 +748,13 @@ class VasImage:
 
     def _get_image_path(self) -> str:
         random.seed(current_time())
-        ran_num = random.randint(0, min(len(VAS_IMAGE_PATHS) - 1, 0))
+        ran_num = random.randint(0, max(len(VAS_IMAGE_PATHS) - 1, 0))
         return VAS_IMAGE_PATHS[ran_num]
 
     def _get_image_name(self) -> str:
-        logger.debug("image name is called")
         return os.path.basename(self.image_path)
 
     def _get_image_type(self) -> str:
-        logger.debug("image type is called")
         components = self.image_name.split(".")
         content_type = components[len(components) - 1]
 
@@ -766,7 +764,6 @@ class VasImage:
         return f"image/{content_type}"
 
     def _get_image_size(self) -> str:
-        logger.debug("image size is called")
         file_size = os.path.getsize(self.image_path) / (1024 * 1024)  # Convert to MB
         formatted_file_size = (
             f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
@@ -774,10 +771,8 @@ class VasImage:
         return formatted_file_size
 
     def _get_image_binary(self) -> str | bytes:
-        logger.debug("image binary is called")
         with open(self.image_path, "rb") as image_file:
-            return "IMAGE".encode("utf-8")
-            # return "IMAGE".encode("utf-8") if DEV else image_file.read()
+            return image_file.read()
 
     def get_image_object(self) -> object:
         return {

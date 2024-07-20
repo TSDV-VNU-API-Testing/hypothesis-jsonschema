@@ -798,7 +798,6 @@ def object_schema(
                         out[key] = draw(st.just(vas_image.image_binary))
 
                         key_with_prefix = get_key_with_vas_prefix(key)
-                        print(key_with_prefix)
                         out[key_with_prefix] = draw(
                             st.just(vas_image.get_image_object())
                         )
