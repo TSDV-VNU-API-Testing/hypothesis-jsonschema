@@ -22,6 +22,7 @@ from typing import (
 )
 from uuid import UUID
 
+from dotenv import dotenv_values as get_dotenv_values
 from faker import Faker
 from hypothesis import strategies as st
 
@@ -32,7 +33,9 @@ def get_key_with_vas_prefix(key_name: str):
     return f"{VAS_KEY_PREFIX}_{key_name}"
 
 
-DEV = True
+dotenv_values = get_dotenv_values(".env")
+PYTHON_ENV = dotenv_values.get("PYTHON_ENV", None)
+DEV = PYTHON_ENV != "PROD"
 
 CURRENT_LEVEL = logging.DEBUG if DEV else logging.INFO
 CURRENT_FORMAT = (
