@@ -22,6 +22,7 @@ from typing import (
 )
 from uuid import UUID
 
+from dotenv import dotenv_values as get_dotenv_values
 from faker import Faker
 from hypothesis import strategies as st
 
@@ -32,7 +33,9 @@ def get_key_with_vas_prefix(key_name: str):
     return f"{VAS_KEY_PREFIX}_{key_name}"
 
 
-DEV = False
+dotenv_values = get_dotenv_values(".env")
+PYTHON_ENV = dotenv_values.get("PYTHON_ENV", None)
+DEV = PYTHON_ENV != "PROD"
 
 CURRENT_LEVEL = logging.DEBUG if DEV else logging.INFO
 CURRENT_FORMAT = (
@@ -728,6 +731,7 @@ VAS_IMAGE_PATHS = [
     if file.lower().endswith(VAS_IMAGE_EXTENSIONS)
 ]
 
+# Image type standard mapping
 IMAGE_TYPE_STANDARD: dict[str, str] = {
     "ico": "vnd.microsoft.icon",
     "jpg": "jpeg",
@@ -747,7 +751,7 @@ class VasImage:
 
     def _get_image_path(self) -> str:
         random.seed(current_time())
-        ran_num = random.randint(0, min(len(VAS_IMAGE_PATHS) - 1, 0))
+        ran_num = random.randint(0, max(len(VAS_IMAGE_PATHS) - 1, 0))
         return VAS_IMAGE_PATHS[ran_num]
 
     def _get_image_name(self) -> str:
@@ -771,8 +775,7 @@ class VasImage:
 
     def _get_image_binary(self) -> str | bytes:
         with open(self.image_path, "rb") as image_file:
-            return "IMAGE".encode("utf-8")
-            # return "IMAGE".encode("utf-8") if DEV else image_file.read()
+            return image_file.read()
 
     def get_image_object(self) -> object:
         return {
