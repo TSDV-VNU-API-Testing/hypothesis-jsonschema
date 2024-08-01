@@ -59,7 +59,7 @@ SCHEMA_OBJECT_KEYS = ("properties", "patternProperties", "dependencies")
 ALL_KEYWORDS = (
     *SCHEMA_KEYS,
     *SCHEMA_OBJECT_KEYS,
-    *sum((s.split() for _, s in TYPE_SPECIFIC_KEYS), []),
+    *(k for _, s in TYPE_SPECIFIC_KEYS for k in s.split()),
 )
 
 

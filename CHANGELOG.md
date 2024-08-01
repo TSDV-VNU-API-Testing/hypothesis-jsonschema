@@ -1,5 +1,8 @@
 # Changelog
 
+#### 0.23.1 - 2024-02-28
+- Fix not respecting `allow_x00` and `codec` arguments for values in some schemas
+
 #### 0.23.0 - 2023-09-24
 - Add new `allow_x00=` and `codec=` arguments to `from_schema()`, so that you can
   control generated strings more precisely.
