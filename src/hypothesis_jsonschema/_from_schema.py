@@ -6,6 +6,7 @@ import operator
 import re
 import time
 import warnings
+from copy import deepcopy
 from fractions import Fraction
 from functools import partial
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Union
@@ -19,6 +20,7 @@ from hypothesis.errors import HypothesisWarning, InvalidArgument
 from hypothesis.internal.conjecture import utils as cu
 from hypothesis.strategies._internal.regex import regex_strategy
 from hypothesis.strategies._internal.strings import OneCharStringStrategy
+
 from hypothesis_jsonschema._vas import (
     CODEC_OPTION_MAP,
     VAS_CODEC,
@@ -101,11 +103,16 @@ def from_js_regex(pattern: str, alphabet: CharStrategy) -> st.SearchStrategy[str
 
 
 def merged_as_strategies(
-    schemas: List[Schema], custom_formats: Optional[Dict[str, st.SearchStrategy[str]]]
+    schemas: List[Schema],
+    *,
+    alphabet: CharStrategy,
+    custom_formats: Optional[Dict[str, st.SearchStrategy[str]]],
 ) -> st.SearchStrategy[JSONType]:
     assert schemas, "internal error: must pass at least one schema to merge"
     if len(schemas) == 1:
-        return from_schema(schemas[0], custom_formats=custom_formats)
+        return __from_schema(
+            schemas[0], alphabet=alphabet, custom_formats=custom_formats
+        )
     # Try to merge combinations of strategies.
     strats = []
     combined: Set[str] = set()
@@ -118,7 +125,9 @@ def merged_as_strategies(
         s = merged([inputs[g] for g in group])
         if s is not None and s != FALSEY:
             strats.append(
-                from_schema(s, custom_formats=custom_formats).filter(
+                __from_schema(
+                    s, alphabet=alphabet, custom_formats=custom_formats
+                ).filter(
                     lambda obj, validators=tuple(
                         make_validator(s).is_valid for s in schemas
                     ): all(v(obj) for v in validators)
@@ -149,63 +158,15 @@ def from_schema(
     recursive references.
     """
 
-    # if (not isinstance(schema, bool)) and "properties" in schema:
-    #     images_directory = "./public/img"
-    #     image_extensions = (".jpg", ".jpeg", ".png", ".bmp")
-    #     image_paths = [
-    #         os.path.join(images_directory, f)
-    #         for f in os.listdir(images_directory)
-    #         if f.lower().endswith(image_extensions)
-    #     ]
-
-    #     if not isinstance(schema["properties"], dict):
-    #         schema["properties"] = {}
-
-    #     properties_copy = copy.deepcopy(
-    #         schema["properties"]
-    #     )  # Fix lỗi changed size each iterator
-    #     for field, details in properties_copy.items():
-    #         if "format" in details and details["format"] == "binary":
-    #             random.seed(time.time())
-    #             random_number = random.randint(0, len(image_paths) - 1)
-    #             image_path = image_paths[random_number]
-
-    #             # Inject path field into properties
-    #             schema["properties"][get_key_with_vas_prefix("image_url")] = {
-    #                 "type": "string",
-    #                 "x-belong": field,
-    #                 "enum": ["public/img/" + os.path.basename(image_path)],
-    #             }
-    #             # Inject imageName field into properties
-    #             schema["properties"][get_key_with_vas_prefix("image_name")] = {
-    #                 "type": "string",
-    #                 "x-belong": field,
-    #                 "enum": [os.path.basename(image_path)],
-    #             }
-
-    #             # Inject size field into properties
-    #             file_size = os.path.getsize(image_path) / (1024 * 1024)  # Convert to MB
-    #             formatted_file_size = (
-    #                 f"{file_size:.2f} MB"  # Format to 2 decimal places and add MB unit
-    #             )
-
-    #             # Inject size field into properties
-    #             schema["properties"][get_key_with_vas_prefix("image_size")] = {
-    #                 "type": "string",
-    #                 "x-belong": field,
-    #                 "enum": [formatted_file_size],
-    #             }
-
     try:
 
         return __from_schema(
-            schema,
+            deepcopy(schema),
             custom_formats=custom_formats,
             alphabet=CharStrategy.from_args(allow_x00=allow_x00, codec=codec),
         )
     except Exception as err:
         error = err
-        logger.debug("error:", error)
 
         def error_raiser() -> NoReturn:
             raise error
@@ -237,7 +198,7 @@ def __from_schema(
     schema: Union[bool, Schema],
     *,
     alphabet: CharStrategy,
-    custom_formats: Optional[Dict[str, st.SearchStrategy[str]]] = None,
+    custom_formats: Optional[Dict[str, st.SearchStrategy[str]]],
 ) -> st.SearchStrategy[JSONType]:
     try:
         schema = resolve_all_refs(schema)
@@ -268,7 +229,7 @@ def __from_schema(
             name: _get_format_filter(name, format_checker, strategy)
             for name, strategy in custom_formats.items()
         }
-        custom_formats[_FORMATS_TOKEN] = None
+        custom_formats[_FORMATS_TOKEN] = None  # type: ignore
 
     schema = canonicalish(schema)
     # Boolean objects are special schemata; False rejects all and True accepts all.
@@ -289,19 +250,28 @@ def __from_schema(
         not_ = schema.pop("not")
         assert isinstance(not_, dict)
         validator = make_validator(not_).is_valid
-        return from_schema(schema, custom_formats=custom_formats).filter(
-            lambda v: not validator(v)
-        )
+        return __from_schema(
+            schema, alphabet=alphabet, custom_formats=custom_formats
+        ).filter(lambda v: not validator(v))
     if "anyOf" in schema:
         tmp = schema.copy()
         ao = tmp.pop("anyOf")
         assert isinstance(ao, list)
-        return st.one_of([merged_as_strategies([tmp, s], custom_formats) for s in ao])
+        return st.one_of(
+            [
+                merged_as_strategies(
+                    [tmp, s], alphabet=alphabet, custom_formats=custom_formats
+                )
+                for s in ao
+            ]
+        )
     if "allOf" in schema:
         tmp = schema.copy()
         ao = tmp.pop("allOf")
         assert isinstance(ao, list)
-        return merged_as_strategies([tmp, *ao], custom_formats)
+        return merged_as_strategies(
+            [tmp, *ao], alphabet=alphabet, custom_formats=custom_formats
+        )
     if "oneOf" in schema:
         tmp = schema.copy()
         oo = tmp.pop("oneOf")
@@ -309,7 +279,7 @@ def __from_schema(
         schemas = [merged([tmp, s]) for s in oo]
         return st.one_of(
             [
-                from_schema(s, custom_formats=custom_formats)
+                __from_schema(s, alphabet=alphabet, custom_formats=custom_formats)
                 for s in schemas
                 if s is not None
             ]
@@ -334,14 +304,6 @@ def __from_schema(
     return st.one_of([map_[t](schema) for t in get_type(schema)])
 
 
-# def get_image_paths():
-#     image_directory = "public/images-catalog"
-#     image_extensions = (".jpeg", ".jpg", ".png", ".bmp", ".gif")
-#     image_paths = [os.path.join(image_directory, f)
-#                    for f in os.listdir(image_directory) if f.lower().endswith(image_extensions)]
-#     return image_paths
-
-
 def _numeric_with_multiplier(
     min_value: Optional[float], max_value: Optional[float], schema: Schema
 ) -> st.SearchStrategy[float]:
@@ -352,12 +314,12 @@ def _numeric_with_multiplier(
         min_value = math.ceil(Fraction(min_value) / Fraction(multiple_of))
     if max_value is not None:
         max_value = math.floor(Fraction(max_value) / Fraction(multiple_of))
-    if min_value is not None and max_value is not None and min_value > max_value:
+    if min_value is not None and max_value is not None and min_value > max_value:  # type: ignore[unreachable]
         # You would think that this is impossible, but it can happen if multipleOf
         # is very small and the bounds are very close togther.  It would be nicer
         # to deal with this when canonicalising, but suffice to say we can't without
         # diverging from the floating-point behaviour of the upstream validator.
-        return st.nothing()
+        return st.nothing()  # type: ignore[unreachable]
     return (
         st.integers(min_value, max_value)
         .map(lambda x: x * multiple_of)
@@ -430,7 +392,7 @@ def rfc3339(name: str) -> st.SearchStrategy[str]:
     return st.tuples(rfc3339("full-date"), rfc3339("full-time")).map("T".join)
 
 
-@st.composite
+@st.composite  # type: ignore
 def regex_patterns(draw: Any) -> str:
     """Return a recursive strategy for simple regular expression patterns."""
     fragments = st.one_of(
@@ -623,7 +585,7 @@ def array_schema(
 
         if unique:
 
-            @st.composite
+            @st.composite  # type: ignore
             def compose_lists_with_filter(draw: Any) -> List[JSONType]:
                 elems = []
                 seen: Set[str] = set()
@@ -740,8 +702,8 @@ def object_schema(
     )
     all_names_strategy = st.one_of([s for s in name_strats if not s.is_empty])
 
-    @st.composite
-    def from_object_schema(draw: st.DrawFn) -> Any:
+    @st.composite  # type: ignore
+    def from_object_schema(draw: Any) -> Any:
         """Do some black magic with private Hypothesis internals for objects.
 
         It's unfortunate, but also the only way that I know of to satisfy all
@@ -816,7 +778,11 @@ def object_schema(
                 # For case that "type: string" hasn't have value yet or other "type"
                 if out.get(key, None) == None:
                     out[key] = draw(
-                        merged_as_strategies(pattern_schemas, custom_formats)
+                        merged_as_strategies(
+                            pattern_schemas,
+                            alphabet=alphabet,
+                            custom_formats=custom_formats,
+                        )
                     )
 
             else:
